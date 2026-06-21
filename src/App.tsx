@@ -6,6 +6,8 @@ import { AppLayout } from "@/layouts/AppLayout";
 import { LoginPage } from "@/pages/LoginPage";
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { CalendarPage } from "@/pages/CalendarPage";
+import { TasksPage } from "@/pages/TasksPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 
 const queryClient = new QueryClient({
@@ -30,14 +32,8 @@ export default function App() {
             {/* Protected — wrapped in AppLayout */}
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route
-                path="/calendar"
-                element={<PlaceholderPage title="Calendar" />}
-              />
-              <Route
-                path="/tasks"
-                element={<PlaceholderPage title="Tasks" />}
-              />
+              <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/tasks" element={<TasksPage />} />
               <Route
                 path="/chat"
                 element={<PlaceholderPage title="Chat" />}
