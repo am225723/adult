@@ -1,0 +1,23 @@
+# deps
+node_modules
+
+# build
+dist
+dist-ssr
+
+# env — .env.local holds real keys, never commit it
+.env.local
+.env.*.local
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
