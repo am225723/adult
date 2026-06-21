@@ -160,7 +160,7 @@ export function DashboardPage() {
               {upcomingEvents.slice(0, 4).map((e) => {
                 const start = new Date(e.start_time);
                 const end = new Date(e.end_time);
-                const isPast = start < new Date();
+                const isPast = end < new Date();
                 return (
                   <div
                     key={e.id}
@@ -229,14 +229,19 @@ export function DashboardPage() {
                   <span className="text-sm truncate">{t.title}</span>
                 </div>
               ))}
-              {todayTasks.length + overdueTasks.length > 4 && (
-                <Link
-                  to="/tasks"
-                  className="text-xs text-muted-foreground hover:text-foreground block"
-                >
-                  +{todayTasks.length + overdueTasks.length - 4} more
-                </Link>
-              )}
+              {(() => {
+                const shownOverdue = Math.min(overdueTasks.length, 2);
+                const shownToday = Math.min(todayTasks.length, 4 - shownOverdue);
+                const hidden = overdueTasks.length + todayTasks.length - shownOverdue - shownToday;
+                return hidden > 0 ? (
+                  <Link
+                    to="/tasks"
+                    className="text-xs text-muted-foreground hover:text-foreground block"
+                  >
+                    +{hidden} more
+                  </Link>
+                ) : null;
+              })()}
             </div>
           )}
         </div>
@@ -270,7 +275,7 @@ function SummaryCard({
   urgent?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-2 hover:border-border/80 transition-colors cursor-pointer">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
       <div className="flex items-center gap-2 text-muted-foreground">
         <Icon size={14} strokeWidth={1.75} />
         <span className="text-xs font-medium">{label}</span>

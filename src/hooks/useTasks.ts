@@ -35,7 +35,7 @@ export function useTasks(filter: TaskFilter = "all", projectId?: string) {
   const { user } = useAuth();
 
   return useQuery<Task[]>({
-    queryKey: ["tasks", filter, projectId],
+    queryKey: ["tasks", user?.id, filter, projectId],
     queryFn: async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -81,7 +81,7 @@ export function useTasks(filter: TaskFilter = "all", projectId?: string) {
 export function useSubtasks(parentId: string) {
   const { user } = useAuth();
   return useQuery<Task[]>({
-    queryKey: ["subtasks", parentId],
+    queryKey: ["subtasks", user?.id, parentId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_tasks")
@@ -98,7 +98,7 @@ export function useSubtasks(parentId: string) {
 export function useProjects() {
   const { user } = useAuth();
   return useQuery<Project[]>({
-    queryKey: ["projects"],
+    queryKey: ["projects", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_projects")
@@ -135,12 +135,13 @@ export function useCreateTask() {
       project_id?: string;
       parent_task_id?: string;
     }) => {
-      const wsId = await getWorkspaceId(user!.id);
+      if (!user) throw new Error("Not authenticated");
+      const wsId = await getWorkspaceId(user.id);
       const { data, error } = await supabase
         .from("admin_tasks")
         .insert({
           workspace_id: wsId,
-          created_by: user!.id,
+          created_by: user.id,
           status: "open",
           priority: task.priority ?? "none",
           title: task.title,
@@ -154,7 +155,10 @@ export function useCreateTask() {
       if (error) throw error;
       return data as Task;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["subtasks"] });
+    },
   });
 }
 
@@ -179,7 +183,10 @@ export function useUpdateTask() {
       if (error) throw error;
       return data as Task;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["subtasks"] });
+    },
   });
 }
 
@@ -191,7 +198,10 @@ export function useDeleteTask() {
       const { error } = await supabase.from("admin_tasks").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["subtasks"] });
+    },
   });
 }
 
@@ -201,7 +211,8 @@ export function useCreateProject() {
 
   return useMutation({
     mutationFn: async (project: { name: string; color?: string }) => {
-      const wsId = await getWorkspaceId(user!.id);
+      if (!user) throw new Error("Not authenticated");
+      const wsId = await getWorkspaceId(user.id);
       const { data, error } = await supabase
         .from("admin_projects")
         .insert({ workspace_id: wsId, name: project.name, color: project.color ?? null })

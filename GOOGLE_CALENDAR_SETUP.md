@@ -36,8 +36,8 @@
 3. Application type: **Web application**
 4. Name: `Adulting Web`
 5. **Authorized redirect URIs** — add:
-   ```
-   https://ysdbfpszitsqnvphbpza.supabase.co/functions/v1/google-calendar-oauth
+   ```text
+   https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/google-calendar-oauth
    ```
 6. Click **Create**
 7. Copy your **Client ID** and **Client Secret**
@@ -61,6 +61,7 @@ In your Supabase project → **Edge Functions → Manage secrets**, add:
 | `GOOGLE_CLIENT_ID` | The Client ID from step 4 |
 | `GOOGLE_CLIENT_SECRET` | The Client Secret from step 4 |
 | `TOKEN_ENCRYPTION_KEY` | The 32-byte hex string from step 5 |
+| `APP_ORIGINS` | Comma-separated list of allowed app origins, e.g. `https://myapp.vercel.app,http://localhost:5173` |
 
 Or via the Supabase CLI:
 ```bash

@@ -16,7 +16,7 @@ export function useCalendarAccount() {
     queryKey: ["calendar-account", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("admin_calendar_accounts")
         .select(
           "id, provider, external_account_email, sync_enabled, last_synced_at",
@@ -24,6 +24,7 @@ export function useCalendarAccount() {
         .eq("user_id", user.id)
         .eq("provider", "google")
         .maybeSingle();
+      if (error) throw error;
       return data ?? null;
     },
     enabled: !!user,

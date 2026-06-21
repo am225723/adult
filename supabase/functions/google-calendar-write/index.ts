@@ -65,6 +65,21 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  if (action !== "delete") {
+    if (!payload.start_time || !payload.end_time) {
+      return new Response(
+        JSON.stringify({ error: "start_time and end_time are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (new Date(payload.end_time) <= new Date(payload.start_time)) {
+      return new Response(
+        JSON.stringify({ error: "end_time must be after start_time" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+  }
+
   // Get user's Google calendar account
   const { data: account } = await supabase
     .from("admin_calendar_accounts")
@@ -174,8 +189,12 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", user.id)
       .single();
 
+    if (!member?.workspace_id) {
+      throw new Error("No workspace found for user");
+    }
+
     const dbEvent = {
-      workspace_id: member?.workspace_id,
+      workspace_id: member.workspace_id,
       calendar_account_id: account.id,
       external_event_id: created.id,
       title: payload.title ?? "(No title)",

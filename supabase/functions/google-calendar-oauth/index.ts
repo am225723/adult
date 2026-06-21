@@ -8,6 +8,14 @@ const TOKEN_ENCRYPTION_KEY = Deno.env.get("TOKEN_ENCRYPTION_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Comma-separated list of allowed redirect origins (e.g. https://myapp.vercel.app,http://localhost:5173)
+const ALLOWED_ORIGINS = new Set(
+  (Deno.env.get("APP_ORIGINS") ?? "http://localhost:5173")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+);
+
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-calendar-oauth`;
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
@@ -77,8 +85,8 @@ Deno.serve(async (req: Request) => {
     return new Response("Invalid state", { status: 400 });
   }
 
-  // Validate origin to prevent open redirect
-  if (!/^https?:\/\//.test(appOrigin)) {
+  // Validate origin against allowlist to prevent open redirect
+  if (!ALLOWED_ORIGINS.has(appOrigin)) {
     return new Response("Invalid origin", { status: 400 });
   }
 

@@ -203,9 +203,13 @@ function TaskRow({
   }
 
   async function addSubtask(title: string) {
-    await createTask.mutateAsync({ title, parent_task_id: task.id });
-    setExpanded(true);
-    setAddingSub(false);
+    try {
+      await createTask.mutateAsync({ title, parent_task_id: task.id });
+      setExpanded(true);
+      setAddingSub(false);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to add subtask" });
+    }
   }
 
   const dueDate = task.due_date ? new Date(task.due_date) : null;
@@ -363,7 +367,7 @@ function ProjectsSidebar({
 
   function handleAdd() {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || createProject.isPending) return;
     createProject.mutate({ name }, {
       onSuccess: () => {
         setNewName("");

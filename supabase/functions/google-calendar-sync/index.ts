@@ -64,7 +64,7 @@ Deno.serve(async (req: Request) => {
   });
 });
 
-async function syncAccount(account: CalendarAccount): Promise<number> {
+async function syncAccount(account: CalendarAccount, retryCount = 0): Promise<number> {
   const accessToken = await getAccessToken(
     account,
     supabase,
@@ -106,13 +106,14 @@ async function syncAccount(account: CalendarAccount): Promise<number> {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    // syncToken expired → do a full sync
+    // syncToken expired → do a full sync (guarded against infinite retry)
     if (res.status === 410) {
+      if (retryCount >= 1) throw new Error("Full sync loop detected after 410");
       await supabase
         .from("admin_calendar_accounts")
         .update({ sync_token: null })
         .eq("id", account.id);
-      return syncAccount({ ...account, sync_token: null });
+      return syncAccount({ ...account, sync_token: null }, retryCount + 1);
     }
 
     if (!res.ok) {

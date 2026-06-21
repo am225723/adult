@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarAccount } from "@/hooks/useCalendarAccount";
 import { useCalendarEvents, type CalendarEvent } from "@/hooks/useCalendarEvents";
@@ -326,6 +327,12 @@ function TimeGrid({
   );
 
   const today = new Date();
+  const [, forceUpdate] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    intervalRef.current = setInterval(() => forceUpdate((n) => n + 1), 60_000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
 
   return (
     <div className="flex flex-col overflow-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
@@ -596,6 +603,7 @@ interface NewEventDialogProps {
 
 function NewEventDialog({ open, onOpenChange, initialDate }: NewEventDialogProps) {
   const { session } = useAuth();
+  const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(
     (initialDate ?? new Date()).toISOString().slice(0, 10),
@@ -610,6 +618,16 @@ function NewEventDialog({ open, onOpenChange, initialDate }: NewEventDialogProps
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !session) return;
+
+    if (!allDay) {
+      const s = new Date(`${date}T${startTime}`);
+      const en = new Date(`${date}T${endTime}`);
+      if (en <= s) {
+        toast({ variant: "destructive", title: "End time must be after start time" });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const startISO = allDay
@@ -637,6 +655,7 @@ function NewEventDialog({ open, onOpenChange, initialDate }: NewEventDialogProps
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to create event");
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
       toast({ title: "Event created" });
       onOpenChange(false);
       setTitle("");
@@ -771,6 +790,7 @@ export function CalendarPage() {
   const [syncing, setSyncing] = useState(false);
 
   const { session } = useAuth();
+  const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -843,7 +863,7 @@ export function CalendarPage() {
     if (!account || !session) return;
     setSyncing(true);
     try {
-      await fetch(`${FN_BASE}/google-calendar-sync`, {
+      const res = await fetch(`${FN_BASE}/google-calendar-sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -851,6 +871,8 @@ export function CalendarPage() {
         },
         body: JSON.stringify({ calendar_account_id: account.id }),
       });
+      if (!res.ok) throw new Error(`Sync returned ${res.status}`);
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
       toast({ title: "Calendar synced" });
     } catch {
       toast({ variant: "destructive", title: "Sync failed" });
@@ -899,7 +921,7 @@ export function CalendarPage() {
         {conflictIds.size > 0 && (
           <div className="flex items-center gap-1 text-xs text-destructive mr-1">
             <AlertCircle size={13} />
-            {conflictIds.size / 2} conflict{conflictIds.size / 2 !== 1 ? "s" : ""}
+            {conflictIds.size} conflicting event{conflictIds.size !== 1 ? "s" : ""}
           </div>
         )}
 

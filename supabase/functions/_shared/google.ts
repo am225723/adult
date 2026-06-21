@@ -60,13 +60,16 @@ export async function getAccessToken(
   const expiresIn = (json.expires_in as number) ?? 3600;
 
   const encryptedAccess = await encryptToken(newAccess, encKey);
-  await supabase
+  const { error: updateErr } = await supabase
     .from("admin_calendar_accounts")
     .update({
       access_token: encryptedAccess,
       token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
     })
     .eq("id", account.id);
+  if (updateErr) {
+    console.error("Failed to persist refreshed access token:", updateErr.message);
+  }
 
   return newAccess;
 }
