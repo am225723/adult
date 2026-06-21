@@ -18,9 +18,9 @@ function todayLabel() {
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const name = user?.user_metadata?.full_name?.split(" ")[0] ??
-    user?.email?.split("@")[0] ??
-    "there";
+  const fullNameFirst = user?.user_metadata?.full_name?.split(" ")[0]?.trim();
+  const emailFirst = user?.email?.split("@")[0]?.trim();
+  const name = fullNameFirst || emailFirst || "there";
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10 space-y-10 animate-fade-in">

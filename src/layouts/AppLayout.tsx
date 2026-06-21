@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Navigate } from "react-router-dom";
+import { toast } from "@/hooks/useToast";
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Today" },
@@ -53,7 +54,15 @@ export function AppLayout() {
     .toUpperCase();
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Sign out failed",
+        description: error.message,
+      });
+      return;
+    }
     navigate("/login", { replace: true });
   }
 
