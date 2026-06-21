@@ -1,0 +1,37 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
+
+export interface CalendarAccountRow {
+  id: string;
+  provider: string;
+  external_account_email: string | null;
+  sync_enabled: boolean | null;
+  last_synced_at: string | null;
+}
+
+export function useCalendarAccount() {
+  const { user } = useAuth();
+  return useQuery<CalendarAccountRow | null>({
+    queryKey: ["calendar-account", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("admin_calendar_accounts")
+        .select(
+          "id, provider, external_account_email, sync_enabled, last_synced_at",
+        )
+        .eq("user_id", user.id)
+        .eq("provider", "google")
+        .maybeSingle();
+      return data ?? null;
+    },
+    enabled: !!user,
+  });
+}
+
+export function useInvalidateCalendarAccount() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return () => qc.invalidateQueries({ queryKey: ["calendar-account", user?.id] });
+}
