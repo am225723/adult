@@ -12,7 +12,9 @@ import {
   Moon,
   Monitor,
   LogOut,
+  Search,
 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/theme-provider";
@@ -28,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Navigate } from "react-router-dom";
 import { toast } from "@/hooks/useToast";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Today" },
@@ -43,6 +46,26 @@ export function AppLayout() {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Global Cmd/Ctrl+K shortcut — skip editable fields and key repeat
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        !!target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && !isEditable) {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
@@ -68,6 +91,8 @@ export function AppLayout() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-background overflow-hidden">
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+
       {/* Sidebar (desktop only) */}
       <aside className="hidden md:flex w-14 flex-col items-center py-4 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
         {/* App mark */}
@@ -76,6 +101,15 @@ export function AppLayout() {
             A
           </span>
         </div>
+
+        {/* Search button */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          title="Search (⌘K)"
+          className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground mb-1"
+        >
+          <Search size={17} strokeWidth={1.75} />
+        </button>
 
         {/* Nav items */}
         <nav className="flex flex-col items-center gap-0.5 flex-1">
@@ -178,7 +212,16 @@ export function AppLayout() {
 
       {/* Bottom navigation (mobile only) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-sidebar border-t border-sidebar-border flex items-center justify-around px-2">
-        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+        {/* Search button (mobile) */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+        >
+          <Search size={20} strokeWidth={1.75} />
+          <span className="text-[10px] font-medium">Search</span>
+        </button>
+
+        {NAV_ITEMS.slice(0, 5).map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}

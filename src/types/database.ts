@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_saved_searches: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          user_id: string
+          name: string
+          query: string
+          category: string
+          filters: string[]
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          user_id: string
+          name: string
+          query?: string
+          category?: string
+          filters?: string[]
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          user_id?: string
+          name?: string
+          query?: string
+          category?: string
+          filters?: string[]
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_saved_searches_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_saved_searches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_ai_summaries: {
         Row: {
           generated_at: string | null
