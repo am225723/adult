@@ -9,7 +9,10 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { MailPage } from "@/pages/MailPage";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { ChatPage } from "@/pages/ChatPage";
+import { PhonePage } from "@/pages/PhonePage";
+import { ContactsPage } from "@/pages/ContactsPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,23 +38,11 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/tasks" element={<TasksPage />} />
-              <Route
-                path="/chat"
-                element={<PlaceholderPage title="Chat" />}
-              />
+              <Route path="/chat" element={<ChatPage />} />
               <Route path="/mail" element={<MailPage />} />
-              <Route
-                path="/phone"
-                element={<PlaceholderPage title="Phone" />}
-              />
-              <Route
-                path="/contacts"
-                element={<PlaceholderPage title="Contacts" />}
-              />
-              <Route
-                path="/settings"
-                element={<PlaceholderPage title="Settings" />}
-              />
+              <Route path="/phone" element={<PhonePage />} />
+              <Route path="/contacts" element={<ContactsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
 
             {/* Fallback */}
