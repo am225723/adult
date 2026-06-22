@@ -5,8 +5,18 @@ import { useTasks } from "@/hooks/useTasks";
 import { useEmails } from "@/hooks/useEmails";
 import { usePhoneCalls } from "@/hooks/usePhoneCalls";
 import { usePhoneMessages } from "@/hooks/usePhoneMessages";
-import { CalendarDays, CheckSquare, Mail, Phone, MessageSquare, AlertCircle } from "lucide-react";
+import {
+  CalendarDays,
+  CheckSquare,
+  Mail,
+  Phone,
+  MessageSquare,
+  AlertCircle,
+  Plus,
+  MessageCircle,
+} from "lucide-react";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function greeting() {
@@ -54,8 +64,18 @@ export function DashboardPage() {
   const { data: todayTasks = [] } = useTasks("today");
   const { data: overdueTasks = [] } = useTasks("overdue");
   const { data: emails = [], isError: emailsError } = useEmails("unread");
-  const { data: missedCalls = [], isError: callsError } = usePhoneCalls("missed");
+  const { data: allCalls = [], isError: callsError } = usePhoneCalls("all");
   const { data: recentMessages = [], isError: messagesError } = usePhoneMessages("all");
+
+  const missedCalls = useMemo(
+    () => allCalls.filter((c) => ["missed", "no-answer", "abandoned"].includes(c.status || "")),
+    [allCalls],
+  );
+
+  const voicemails = useMemo(
+    () => allCalls.filter((c) => !!c.voicemail_transcript).slice(0, 3),
+    [allCalls],
+  );
 
   const upcomingEvents = todayEvents
     .filter((e) => !e.all_day)
@@ -67,7 +87,7 @@ export function DashboardPage() {
   const overdueCount = overdueTasks.length;
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10 space-y-10 animate-fade-in">
+    <div className="max-w-6xl mx-auto px-6 py-10 space-y-10 animate-fade-in">
       {/* Header */}
       <div className="space-y-0.5">
         <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
@@ -76,6 +96,34 @@ export function DashboardPage() {
         <h1 className="text-2xl font-semibold text-foreground">
           {greeting()}, {name}.
         </h1>
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex gap-2 flex-wrap">
+        <Link to="/tasks">
+          <Button size="sm" variant="outline" className="gap-2">
+            <Plus size={14} />
+            New task
+          </Button>
+        </Link>
+        <Link to="/calendar">
+          <Button size="sm" variant="outline" className="gap-2">
+            <CalendarDays size={14} />
+            New event
+          </Button>
+        </Link>
+        <Link to="/mail">
+          <Button size="sm" variant="outline" className="gap-2">
+            <Mail size={14} />
+            Compose
+          </Button>
+        </Link>
+        <Link to="/chat">
+          <Button size="sm" variant="outline" className="gap-2">
+            <MessageCircle size={14} />
+            Send SMS
+          </Button>
+        </Link>
       </div>
 
       {/* Summary cards row */}
@@ -146,7 +194,7 @@ export function DashboardPage() {
       </div>
 
       {/* Sections */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Up next */}
         <div className="rounded-xl border border-border bg-card p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -273,6 +321,7 @@ export function DashboardPage() {
         <Section
           icon={MessageSquare}
           title="Recent messages"
+          viewAllTo="/chat"
           items={recentMessages.slice(0, 3).map((msg) => ({
             id: msg.id,
             title: msg.body?.substring(0, 60) || "(empty message)",
@@ -284,6 +333,7 @@ export function DashboardPage() {
         <Section
           icon={Mail}
           title="Priority inbox"
+          viewAllTo="/mail"
           items={emails.slice(0, 3).map((email) => ({
             id: email.id,
             title: email.subject || "(no subject)",
@@ -291,6 +341,22 @@ export function DashboardPage() {
           }))}
           emptyMessage={emailsError ? "Gmail connection error" : "No unread emails."}
           error={emailsError}
+        />
+
+        <Section
+          icon={Phone}
+          title="Voicemails"
+          viewAllTo="/phone"
+          items={voicemails.map((vm) => ({
+            id: vm.id,
+            title: vm.voicemail_transcript?.substring(0, 60) || "(empty)",
+            subtitle: new Date(vm.occurred_at || "").toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            }),
+          }))}
+          emptyMessage={callsError ? "Quo connection error" : "No voicemails."}
+          error={callsError}
         />
       </div>
     </div>
@@ -344,18 +410,30 @@ function Section({
   emptyMessage,
   items = [],
   error = false,
+  viewAllTo,
 }: {
   icon: React.ElementType;
   title: string;
   emptyMessage: string;
   items?: Array<{ id: string; title: string; subtitle?: string }>;
   error?: boolean;
+  viewAllTo?: string;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-      <div className="flex items-center gap-2">
-        <Icon size={14} strokeWidth={1.75} className="text-muted-foreground" />
-        <h2 className="text-sm font-medium text-foreground">{title}</h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Icon size={14} strokeWidth={1.75} className="text-muted-foreground" />
+          <h2 className="text-sm font-medium text-foreground">{title}</h2>
+        </div>
+        {viewAllTo && items.length > 0 && (
+          <Link
+            to={viewAllTo}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            View all
+          </Link>
+        )}
       </div>
 
       {items.length === 0 ? (
