@@ -12,6 +12,7 @@ import { MailPage } from "@/pages/MailPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { PhonePage } from "@/pages/PhonePage";
 import { ContactsPage } from "@/pages/ContactsPage";
+import { ContactDetailPage } from "@/pages/ContactDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 const queryClient = new QueryClient({
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="/mail" element={<MailPage />} />
               <Route path="/phone" element={<PhonePage />} />
               <Route path="/contacts" element={<ContactsPage />} />
+              <Route path="/contacts/:id" element={<ContactDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
 
