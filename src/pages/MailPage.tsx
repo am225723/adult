@@ -162,7 +162,7 @@ function EmailDetail({
     : "Unknown date";
 
   return (
-    <div className="w-96 shrink-0 border-l border-border flex flex-col h-full bg-card">
+    <div className="w-96 shrink-0 md:border-l border-t md:border-t-0 border-border flex flex-col h-full bg-card">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -339,8 +339,8 @@ export function MailPage() {
   ];
 
   return (
-    <div className="flex h-screen">
-      <div className="flex-1 flex flex-col">
+    <div className="flex flex-col md:flex-row h-screen">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
           <div className="flex rounded-lg border border-border overflow-hidden">
@@ -418,12 +418,24 @@ export function MailPage() {
         </div>
       </div>
 
-      {/* Detail panel */}
+      {/* Detail panel (desktop) */}
       {selectedEmail && (
-        <EmailDetail
-          email={selectedEmail}
-          onClose={() => setSelectedEmail(null)}
-        />
+        <div className="hidden md:flex">
+          <EmailDetail
+            email={selectedEmail}
+            onClose={() => setSelectedEmail(null)}
+          />
+        </div>
+      )}
+
+      {/* Mobile detail modal */}
+      {selectedEmail && (
+        <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex animate-in fade-in slide-in-from-bottom">
+          <EmailDetail
+            email={selectedEmail}
+            onClose={() => setSelectedEmail(null)}
+          />
+        </div>
       )}
     </div>
   );

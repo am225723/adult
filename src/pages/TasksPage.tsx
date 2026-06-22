@@ -478,7 +478,7 @@ function TaskDetail({
   }
 
   return (
-    <div className="w-80 shrink-0 border-l border-border flex flex-col h-full bg-card">
+    <div className="w-80 md:w-96 shrink-0 md:border-l border-t md:border-t-0 border-border flex flex-col h-full bg-card">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -667,7 +667,7 @@ function ProjectsSidebar({
   }
 
   return (
-    <div className="w-44 shrink-0 border-r border-border flex flex-col">
+    <div className="hidden md:flex w-44 shrink-0 border-r border-border flex-col">
       <div className="px-3 py-3">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
           Projects
@@ -775,7 +775,7 @@ export function TasksPage() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex flex-col md:flex-row h-screen">
       <ProjectsSidebar
         selectedProject={selectedProject}
         onSelect={(id) => {
@@ -834,12 +834,24 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Detail panel */}
+      {/* Detail panel (desktop) or modal (mobile) */}
       {selectedTask && (
-        <TaskDetail
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-        />
+        <div className="hidden md:flex">
+          <TaskDetail
+            task={selectedTask}
+            onClose={() => setSelectedTask(null)}
+          />
+        </div>
+      )}
+
+      {/* Mobile detail modal overlay */}
+      {selectedTask && (
+        <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex flex-col animate-in fade-in slide-in-from-bottom">
+          <TaskDetail
+            task={selectedTask}
+            onClose={() => setSelectedTask(null)}
+          />
+        </div>
       )}
     </div>
   );

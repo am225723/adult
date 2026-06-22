@@ -124,7 +124,7 @@ function ConversationDetail({
   }
 
   return (
-    <div className="w-96 shrink-0 border-l border-border flex flex-col h-full bg-card">
+    <div className="w-full md:w-96 shrink-0 md:border-l border-t md:border-t-0 border-border flex flex-col h-full bg-card">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <div className="flex-1">
@@ -257,9 +257,9 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex flex-col md:flex-row h-screen">
       {/* Conversation list */}
-      <div className="w-80 border-r border-border flex flex-col">
+      <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-border flex flex-col min-w-0">
         <div className="px-4 py-4 border-b border-border">
           <h1 className="text-lg font-semibold">SMS Messages</h1>
           <p className="text-xs text-muted-foreground mt-1">
