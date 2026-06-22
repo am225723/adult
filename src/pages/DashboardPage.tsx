@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { WidgetPreview } from "@/components/WidgetPreview";
+import { DailyBriefing } from "@/components/DailyBriefing";
+import { SuggestedFollowUps } from "@/components/SuggestedFollowUps";
 import { cn } from "@/lib/utils";
 
 function greeting() {
@@ -358,6 +361,13 @@ export function DashboardPage() {
           emptyMessage={callsError ? "Quo connection error" : "No voicemails."}
           error={callsError}
         />
+      </div>
+
+      {/* AI-ready widgets section */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <WidgetPreview />
+        <DailyBriefing />
+        <SuggestedFollowUps />
       </div>
     </div>
   );

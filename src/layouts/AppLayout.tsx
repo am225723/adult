@@ -67,9 +67,9 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-14 flex flex-col items-center py-4 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
+    <div className="flex flex-col md:flex-row h-screen bg-background overflow-hidden">
+      {/* Sidebar (desktop only) */}
+      <aside className="hidden md:flex w-14 flex-col items-center py-4 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
         {/* App mark */}
         <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center mb-3 shrink-0">
           <span className="text-background text-xs font-bold leading-none">
@@ -172,9 +172,61 @@ export function AppLayout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto flex flex-col pb-14 md:pb-0">
         <Outlet />
       </main>
+
+      {/* Bottom navigation (mobile only) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-sidebar border-t border-sidebar-border flex items-center justify-around px-2">
+        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            title={label}
+            className={({ isActive }) =>
+              cn(
+                "flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-lg transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                isActive &&
+                  "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+              )
+            }
+          >
+            <Icon size={20} strokeWidth={1.75} />
+            <span className="text-[10px] font-medium truncate">{label}</span>
+          </NavLink>
+        ))}
+
+        {/* More menu (mobile) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+              <Settings size={20} strokeWidth={1.75} />
+              <span className="text-[10px] font-medium">More</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" className="w-36 mb-1">
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-xs truncate text-muted-foreground">
+                {user.email}
+              </p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setTheme("light")}>
+              <Sun size={14} className="mr-2" /> Light
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <Moon size={14} className="mr-2" /> Dark
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("system")}>
+              <Monitor size={14} className="mr-2" /> System
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+              <LogOut size={14} className="mr-2" /> Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </nav>
     </div>
   );
 }

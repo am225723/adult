@@ -12,6 +12,7 @@ export interface Task {
   parent_task_id: string | null;
   title: string;
   notes: string | null;
+  tags: string[] | null;
   due_date: string | null;
   priority: TaskPriority;
   status: TaskStatus;
@@ -130,6 +131,7 @@ export function useCreateTask() {
     mutationFn: async (task: {
       title: string;
       notes?: string;
+      tags?: string[];
       due_date?: string;
       priority?: TaskPriority;
       project_id?: string;
@@ -146,6 +148,7 @@ export function useCreateTask() {
           priority: task.priority ?? "none",
           title: task.title,
           notes: task.notes ?? null,
+          tags: task.tags ?? null,
           due_date: task.due_date ?? null,
           project_id: task.project_id ?? null,
           parent_task_id: task.parent_task_id ?? null,
