@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { ErrorState } from "@/components/ErrorState";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useGmailAccount } from "@/hooks/useGmailAccount";
@@ -31,7 +33,8 @@ function ConnectPrompt({ onConnect }: { onConnect: () => void }) {
 }
 
 function EmailRow({ email }: { email: any }) {
-  const dateFormatter = (date: string) => {
+  const dateFormatter = (date: string | null | undefined) => {
+    if (!date) return "—";
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -55,14 +58,14 @@ function EmailRow({ email }: { email: any }) {
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className={cn("text-sm truncate", !email.is_read && "font-semibold")}>
-            {email.from_addr || "Unknown sender"}
+          <p className={cn("text-sm truncate", email.is_read === false && "font-semibold")}>
+            {email.from_address || "Unknown sender"}
           </p>
         </div>
-        <p className={cn("text-sm truncate", !email.is_read ? "text-foreground font-medium" : "text-muted-foreground")}>
-          {email.subject}
+        <p className={cn("text-sm truncate", email.is_read === false ? "text-foreground font-medium" : "text-muted-foreground")}>
+          {email.subject || "(no subject)"}
         </p>
-        <p className="text-xs text-muted-foreground truncate">{email.snippet}</p>
+        <p className="text-xs text-muted-foreground truncate">{email.snippet || ""}</p>
       </div>
       <div className="text-xs text-muted-foreground shrink-0">
         {dateFormatter(email.received_at)}
@@ -191,15 +194,25 @@ export function MailPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {accountLoading ? null : !account ? (
+        {accountLoading ? (
+          <LoadingSpinner message="Checking Gmail connection…" />
+        ) : !account ? (
           <ConnectPrompt onConnect={handleConnect} />
         ) : emailsLoading ? (
-          <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-            Loading emails…
-          </div>
+          <LoadingSpinner message="Loading emails…" />
         ) : emails.length === 0 ? (
-          <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-            No emails found.
+          <div className="flex flex-col items-center justify-center h-48 gap-2">
+            <Mail size={24} strokeWidth={1.25} className="text-muted-foreground" />
+            <div className="text-center">
+              <p className="text-sm text-foreground">No emails found</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {filter === "unread"
+                  ? "Your inbox is all caught up!"
+                  : filter === "starred"
+                    ? "No starred emails yet"
+                    : "Check back soon"}
+              </p>
+            </div>
           </div>
         ) : (
           <div>

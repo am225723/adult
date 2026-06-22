@@ -8,8 +8,10 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { usePhoneCalls } from "@/hooks/usePhoneCalls";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const FN_BASE = `${SUPABASE_URL}/functions/v1`;
@@ -57,7 +59,7 @@ function formatDuration(seconds?: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-function CallIcon({ call }: { call: QuoCall }) {
+function CallIcon({ call }: { call: any }) {
   const missed =
     call.status === "missed" ||
     call.status === "no-answer" ||
@@ -68,14 +70,13 @@ function CallIcon({ call }: { call: QuoCall }) {
   return <PhoneOutgoing size={14} className="text-blue-400" />;
 }
 
-function CallRow({ call }: { call: QuoCall }) {
+function CallRow({ call }: { call: any }) {
   const [expanded, setExpanded] = useState(false);
   const missed =
     call.status === "missed" ||
     call.status === "no-answer" ||
     call.status === "abandoned";
-  const other = call.direction === "inbound" ? call.from : call.to;
-  const hasTranscript = !!call.voicemail?.transcript;
+  const hasTranscript = !!call.voicemail_transcript;
 
   return (
     <div className="border-b border-border">
@@ -92,12 +93,12 @@ function CallRow({ call }: { call: QuoCall }) {
 
         <div className="flex-1 min-w-0">
           <p className={cn("text-sm font-medium truncate", missed && "text-destructive")}>
-            {other}
+            {call.id || "Unknown"}
           </p>
           <p className="text-xs text-muted-foreground">
-            {relativeTime(call.createdAt)}
-            {call.duration ? ` · ${formatDuration(call.duration)}` : ""}
-            {call.voicemail?.transcript ? " · Voicemail" : ""}
+            {call.occurred_at ? relativeTime(call.occurred_at) : "Unknown time"}
+            {call.duration_seconds ? ` · ${formatDuration(call.duration_seconds)}` : ""}
+            {call.voicemail_transcript ? " · Voicemail" : ""}
           </p>
         </div>
 
@@ -110,11 +111,11 @@ function CallRow({ call }: { call: QuoCall }) {
         )}
       </button>
 
-      {expanded && call.voicemail?.transcript && (
+      {expanded && call.voicemail_transcript && (
         <div className="px-4 pb-3 ml-12">
           <p className="text-xs text-muted-foreground font-medium mb-1">Voicemail transcript</p>
           <p className="text-sm text-foreground bg-muted rounded-lg px-3 py-2">
-            {call.voicemail.transcript}
+            {call.voicemail_transcript}
           </p>
         </div>
       )}
@@ -142,81 +143,13 @@ function ConnectPrompt() {
 }
 
 export function PhonePage() {
-  const { session } = useAuth();
   const [filter, setFilter] = useState<CallFilter>("missed");
-  const [selectedPhoneId, setSelectedPhoneId] = useState<string | null>(null);
-
-  // Fetch phone numbers
-  const {
-    data: phoneData,
-    isLoading: phonesLoading,
-    error: phonesError,
-  } = useQuery({
-    queryKey: ["quo-phones-calls"],
-    queryFn: async () => {
-      const res = await fetch(`${FN_BASE}/quo-messages?action=phone-numbers`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      const json = await res.json();
-      if (!res.ok) throw json;
-      return json as { data: PhoneNumber[] };
-    },
-    enabled: !!session,
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (phoneData?.data.length && !selectedPhoneId) {
-      setSelectedPhoneId(phoneData.data[0].id);
-    }
-  }, [phoneData, selectedPhoneId]);
-
-  const selectedPhone = phoneData?.data.find((p) => p.id === selectedPhoneId);
-
-  // Fetch calls
-  const { data: callsData, isLoading: callsLoading, error: callsError } = useQuery({
-    queryKey: ["quo-calls", selectedPhoneId, filter],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        phoneNumberId: selectedPhoneId!,
-        filter,
-      });
-      const res = await fetch(`${FN_BASE}/quo-calls?${params}`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (!res.ok) throw new Error("Failed to fetch calls");
-      return res.json() as Promise<{ data: QuoCall[] }>;
-    },
-    enabled: !!session && !!selectedPhoneId,
-  });
+  const { data: calls = [], isLoading, error } = usePhoneCalls(filter);
 
   const TABS: { key: CallFilter; label: string }[] = [
     { key: "missed", label: "Missed" },
     { key: "all", label: "All Calls" },
   ];
-
-  const notConfigured =
-    phonesError && (phonesError as any)?.error === "not_configured";
-
-  if (phonesLoading) {
-    return (
-      <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
-  }
-
-  if (notConfigured) {
-    return <ConnectPrompt />;
-  }
-
-  if (phonesError && !notConfigured) {
-    return (
-      <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-        Failed to load phone numbers.
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-screen">
@@ -238,39 +171,18 @@ export function PhonePage() {
             </button>
           ))}
         </div>
-
-        {(phoneData?.data.length ?? 0) > 1 && (
-          <div className="relative ml-auto">
-            <select
-              value={selectedPhoneId ?? ""}
-              onChange={(e) => setSelectedPhoneId(e.target.value)}
-              className="text-xs rounded-md border border-input bg-transparent px-3 py-1.5 pr-7 appearance-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {phoneData?.data.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name ?? p.phoneNumber}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={12}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-            />
-          </div>
-        )}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {callsLoading ? (
-          <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-            Loading calls…
+        {isLoading ? (
+          <LoadingSpinner message="Loading calls…" />
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-48 gap-2 text-destructive">
+            <Phone size={24} strokeWidth={1.25} />
+            <p className="text-sm">Failed to load calls.</p>
           </div>
-        ) : callsError ? (
-          <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-            Failed to load calls.
-          </div>
-        ) : !callsData?.data.length ? (
+        ) : calls.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
             <Phone size={24} strokeWidth={1.25} />
             <p className="text-sm">
@@ -278,7 +190,7 @@ export function PhonePage() {
             </p>
           </div>
         ) : (
-          callsData.data.map((call) => <CallRow key={call.id} call={call} />)
+          calls.map((call) => <CallRow key={call.id} call={call} />)
         )}
       </div>
     </div>

@@ -2,7 +2,10 @@ import { useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { useTasks } from "@/hooks/useTasks";
-import { CalendarDays, CheckSquare, Mail, Phone, MessageSquare } from "lucide-react";
+import { useEmails } from "@/hooks/useEmails";
+import { usePhoneCalls } from "@/hooks/usePhoneCalls";
+import { usePhoneMessages } from "@/hooks/usePhoneMessages";
+import { CalendarDays, CheckSquare, Mail, Phone, MessageSquare, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +53,9 @@ export function DashboardPage() {
   const { data: todayEvents = [] } = useCalendarEvents(todayStart, todayEnd);
   const { data: todayTasks = [] } = useTasks("today");
   const { data: overdueTasks = [] } = useTasks("overdue");
+  const { data: emails = [], isError: emailsError } = useEmails("unread");
+  const { data: missedCalls = [], isError: callsError } = usePhoneCalls("missed");
+  const { data: recentMessages = [], isError: messagesError } = usePhoneMessages("all");
 
   const upcomingEvents = todayEvents
     .filter((e) => !e.all_day)
@@ -107,18 +113,36 @@ export function DashboardPage() {
             urgent={overdueCount > 0}
           />
         </Link>
-        <SummaryCard
-          icon={Mail}
-          label="Unread emails"
-          value="—"
-          sublabel="Gmail not connected"
-        />
-        <SummaryCard
-          icon={Phone}
-          label="Missed calls"
-          value="—"
-          sublabel="Quo not connected"
-        />
+        <Link to="/mail">
+          <SummaryCard
+            icon={Mail}
+            label="Unread emails"
+            value={emailsError ? "—" : String(emails.length)}
+            sublabel={
+              emailsError
+                ? "Gmail connection error"
+                : emails.length === 0
+                  ? "All caught up"
+                  : `${emails.length} unread`
+            }
+            urgent={!emailsError && emails.length > 0}
+          />
+        </Link>
+        <Link to="/phone">
+          <SummaryCard
+            icon={Phone}
+            label="Missed calls"
+            value={callsError ? "—" : String(missedCalls.length)}
+            sublabel={
+              callsError
+                ? "Quo connection error"
+                : missedCalls.length === 0
+                  ? "No missed calls"
+                  : `${missedCalls.length} missed`
+            }
+            urgent={!callsError && missedCalls.length > 0}
+          />
+        </Link>
       </div>
 
       {/* Sections */}
@@ -249,12 +273,24 @@ export function DashboardPage() {
         <Section
           icon={MessageSquare}
           title="Recent messages"
-          emptyMessage="No messages yet."
+          items={recentMessages.slice(0, 3).map((msg) => ({
+            id: msg.id,
+            title: msg.body?.substring(0, 60) || "(empty message)",
+            subtitle: new Date(msg.occurred_at || "").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          }))}
+          emptyMessage={messagesError ? "SMS connection error" : "No recent messages."}
+          error={messagesError}
         />
         <Section
           icon={Mail}
           title="Priority inbox"
-          emptyMessage="No emails yet. Connect Gmail to see your inbox here."
+          items={emails.slice(0, 3).map((email) => ({
+            id: email.id,
+            title: email.subject || "(no subject)",
+            subtitle: email.from_address || "Unknown",
+          }))}
+          emptyMessage={emailsError ? "Gmail connection error" : "No unread emails."}
+          error={emailsError}
         />
       </div>
     </div>
@@ -306,10 +342,14 @@ function Section({
   icon: Icon,
   title,
   emptyMessage,
+  items = [],
+  error = false,
 }: {
   icon: React.ElementType;
   title: string;
   emptyMessage: string;
+  items?: Array<{ id: string; title: string; subtitle?: string }>;
+  error?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-3">
@@ -317,7 +357,29 @@ function Section({
         <Icon size={14} strokeWidth={1.75} className="text-muted-foreground" />
         <h2 className="text-sm font-medium text-foreground">{title}</h2>
       </div>
-      <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+
+      {items.length === 0 ? (
+        <div className="flex items-start gap-2">
+          {error && <AlertCircle size={14} className="text-destructive mt-0.5 shrink-0" />}
+          <p className={cn("text-sm", error ? "text-destructive" : "text-muted-foreground")}>
+            {emptyMessage}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-start gap-2">
+              <div className="mt-0.5 w-1 h-1 rounded-full bg-primary shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{item.title}</p>
+                {item.subtitle && (
+                  <p className="text-xs text-muted-foreground">{item.subtitle}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
