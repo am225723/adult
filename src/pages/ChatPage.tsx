@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MessageSquare, X, Plus } from "lucide-react";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { usePhoneMessages, type PhoneMessage } from "@/hooks/usePhoneMessages";
@@ -279,12 +279,24 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Detail panel */}
+      {/* Detail panel (desktop) */}
       {selectedConversation && (
-        <ConversationDetail
-          conversation={selectedConversation}
-          onClose={() => setSelectedContactId(null)}
-        />
+        <div className="hidden md:flex">
+          <ConversationDetail
+            conversation={selectedConversation}
+            onClose={() => setSelectedContactId(null)}
+          />
+        </div>
+      )}
+
+      {/* Mobile detail modal */}
+      {selectedConversation && (
+        <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex animate-in fade-in slide-in-from-bottom">
+          <ConversationDetail
+            conversation={selectedConversation}
+            onClose={() => setSelectedContactId(null)}
+          />
+        </div>
       )}
     </div>
   );

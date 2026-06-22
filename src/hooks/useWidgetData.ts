@@ -5,6 +5,7 @@ import { useEmails } from "@/hooks/useEmails";
 import { usePhoneCalls } from "@/hooks/usePhoneCalls";
 import { usePhoneMessages } from "@/hooks/usePhoneMessages";
 
+/** Aggregated counts for today across calendar, tasks, emails, calls, and messages */
 export interface WidgetData {
   todayEventsCount: number;
   dueTodayTasksCount: number;
@@ -16,39 +17,35 @@ export interface WidgetData {
   error: boolean;
 }
 
+/** Aggregates today's activity counts across all systems for dashboard widgets and external integrations */
 export function useWidgetData(): WidgetData {
+  const dateKey = new Date().toDateString();
+
   const todayStart = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
-  }, []);
+  }, [dateKey]);
 
   const todayEnd = useMemo(() => {
     const d = new Date(todayStart);
     d.setDate(d.getDate() + 1);
     return d;
-  }, [todayStart]);
+  }, [todayStart, dateKey]);
 
-  const { data: todayEvents = [], isLoading: eventsLoading } = useCalendarEvents(
+  const { data: todayEvents = [], isLoading: eventsLoading, isError: eventsError } = useCalendarEvents(
     todayStart,
     todayEnd,
   );
-  const { data: todayTasks = [], isLoading: tasksLoading } = useTasks("today");
+  const { data: todayTasks = [], isLoading: tasksLoading, isError: tasksError } = useTasks("today");
   const { data: overdueTasks = [], isLoading: overdueLoading } = useTasks("overdue");
   const { data: emails = [], isError: emailsError, isLoading: emailsLoading } = useEmails(
     "unread",
   );
-  const { data: allCalls = [], isError: callsError, isLoading: callsLoading } =
-    usePhoneCalls("all");
-  const { data: messages = [], isError: messagesError, isLoading: messagesLoading } =
-    usePhoneMessages("all");
-
-  const missedCalls = useMemo(
-    () => allCalls.filter((c) => ["missed", "no-answer", "abandoned"].includes(c.status || "")),
-    [allCalls],
-  );
-
-  const unreadMessages = useMemo(() => messages.filter((m) => !m.is_read), [messages]);
+  const { data: missedCalls = [], isError: callsError, isLoading: callsLoading } =
+    usePhoneCalls("missed");
+  const { data: unreadMessages = [], isError: messagesError, isLoading: messagesLoading } =
+    usePhoneMessages("unread");
 
   return useMemo(
     () => ({
@@ -65,7 +62,7 @@ export function useWidgetData(): WidgetData {
         emailsLoading ||
         callsLoading ||
         messagesLoading,
-      error: emailsError || callsError || messagesError,
+      error: eventsError || tasksError || emailsError || callsError || messagesError,
     }),
     [
       todayEvents.length,
@@ -80,6 +77,8 @@ export function useWidgetData(): WidgetData {
       emailsLoading,
       callsLoading,
       messagesLoading,
+      eventsError,
+      tasksError,
       emailsError,
       callsError,
       messagesError,

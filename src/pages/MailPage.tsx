@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Mail, RefreshCw, X, Flag, CheckCircle2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -100,13 +101,16 @@ function EmailDetail({
 }) {
   const createTask = useCreateTask();
   const [creatingTask, setCreatingTask] = useState(false);
+  const queryClient = useQueryClient();
 
   async function handleMarkRead(isRead: boolean) {
     try {
-      await supabase
+      const { error } = await supabase
         .from("admin_emails")
         .update({ is_read: isRead })
         .eq("id", email.id);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast({
         title: isRead ? "Marked as read" : "Marked as unread",
       });
@@ -117,10 +121,12 @@ function EmailDetail({
 
   async function handleToggleFlag() {
     try {
-      await supabase
+      const { error } = await supabase
         .from("admin_emails")
         .update({ is_flagged: !email.is_flagged })
         .eq("id", email.id);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ["emails"] });
       toast({
         title: email.is_flagged ? "Unflagged" : "Flagged",
       });
@@ -189,7 +195,7 @@ function EmailDetail({
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">To</p>
             <p className="text-sm text-foreground">
-              {(email.to_addresses as string[]).join(", ")}
+              {email.to_addresses.join(", ")}
             </p>
           </div>
         )}
@@ -265,13 +271,23 @@ export function MailPage() {
     refetch: refetchEmails,
   } = useEmails(filter);
 
+  // Parse initial filter from URL params
+  useEffect(() => {
+    const filterParam = searchParams.get("filter");
+    if (filterParam && ["inbox", "unread", "starred", "all"].includes(filterParam)) {
+      setFilter(filterParam as EmailFilter);
+    }
+  }, []);
+
   // Update selected email when emails list changes
   useEffect(() => {
     if (selectedEmail) {
       const updated = emails.find((e) => e.id === selectedEmail.id);
-      if (updated) setSelectedEmail(updated);
+      if (updated) {
+        setSelectedEmail(updated);
+      }
     }
-  }, [emails]);
+  }, [emails, selectedEmail]);
 
   // Handle OAuth redirect back
   useEffect(() => {

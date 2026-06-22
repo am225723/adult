@@ -60,6 +60,7 @@ function CallRow({
   onSelect: (call: PhoneCall) => void;
   selectedId?: string;
 }) {
+  const { data: contact } = useContact(call.contact_id || "");
   const missed =
     call.status === "missed" ||
     call.status === "no-answer" ||
@@ -81,7 +82,7 @@ function CallRow({
 
       <div className="flex-1 min-w-0">
         <p className={cn("text-sm font-medium truncate", missed && "text-destructive")}>
-          {call.id || "Unknown"}
+          {contact?.display_name || "Unknown"}
         </p>
         <p className="text-xs text-muted-foreground">
           {call.occurred_at ? relativeTime(call.occurred_at) : "Unknown time"}
@@ -123,11 +124,14 @@ function CallDetail({
 
   async function handleCreateTask() {
     let title = "Phone call";
-    let notes = `Call from ${call.id || "Unknown"}`;
+    let notes = `Call from ${contact?.display_name || "Unknown"}\n`;
+    notes += `Date: ${displayDate}\n`;
+    notes += `Direction: ${call.direction === "inbound" ? "Incoming" : "Outgoing"}\n`;
+    if (call.duration_seconds) notes += `Duration: ${formatDuration(call.duration_seconds)}\n`;
 
     if (call.voicemail_transcript) {
       title = "Voicemail";
-      notes = call.voicemail_transcript;
+      notes = `From: ${contact?.display_name || "Unknown"}\nDate: ${displayDate}\n\n${call.voicemail_transcript}`;
     }
 
     setCreatingTask(true);
@@ -181,8 +185,8 @@ function CallDetail({
         {/* Number */}
         <div>
           <p className="text-xs font-medium text-muted-foreground mb-1">Number</p>
-          <a href={`tel:${call.id}`} className="text-sm text-primary hover:underline">
-            {call.id}
+          <a href={`tel:${contact?.primary_phone}`} className="text-sm text-primary hover:underline">
+            {contact?.primary_phone || "Unknown"}
           </a>
         </div>
 

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Plus,
   ChevronRight,
@@ -740,11 +741,20 @@ function ProjectsSidebar({
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export function TasksPage() {
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<TaskTab>("today");
   const [selectedProject, setSelectedProject] = useState<string | undefined>();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const { data: tasks = [], isLoading } = useTasks(tab, selectedProject);
   const createTask = useCreateTask();
+
+  // Parse initial tab from URL params
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["today", "upcoming", "overdue", "all", "completed"].includes(tabParam)) {
+      setTab(tabParam as TaskTab);
+    }
+  }, []);
 
   // Keep selected task in sync with updated data
   useEffect(() => {
@@ -752,7 +762,7 @@ export function TasksPage() {
       const updated = tasks.find((t) => t.id === selectedTask.id);
       if (updated) setSelectedTask(updated);
     }
-  }, [tasks]);
+  }, [tasks, selectedTask]);
 
   function handleAdd(title: string) {
     const today = new Date();

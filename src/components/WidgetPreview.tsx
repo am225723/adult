@@ -9,6 +9,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+/** Compact metric display showing today's key counts at a glance */
 export function WidgetPreview() {
   const widget = useWidgetData();
 
