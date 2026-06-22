@@ -9,7 +9,7 @@ This guide walks you through connecting Gmail to the Adulting app. The same Goog
 3. Go to **APIs & Services → Credentials**
 4. Click on your existing "Adulting Web" OAuth 2.0 Client
 5. Under **Authorized redirect URIs**, add:
-   ```
+   ```bash
    https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/google-gmail-oauth
    ```
 6. Click **Save**
@@ -29,6 +29,7 @@ This guide walks you through connecting Gmail to the Adulting app. The same Goog
 5. Add (if not already present):
    - `https://www.googleapis.com/auth/gmail.readonly`
    - `https://www.googleapis.com/auth/gmail.modify`
+   - `https://www.googleapis.com/auth/userinfo.email`
 6. Click **Save and Continue** → **Back to Dashboard**
 
 ## 4. Verify Environment Variables

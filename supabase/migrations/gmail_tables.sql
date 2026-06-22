@@ -47,6 +47,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_emails_workspace_id ON admin_emails(workspa
 CREATE INDEX IF NOT EXISTS idx_admin_emails_gmail_account_id ON admin_emails(gmail_account_id);
 CREATE INDEX IF NOT EXISTS idx_admin_emails_received_at ON admin_emails(received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_emails_is_read ON admin_emails(is_read);
+CREATE INDEX IF NOT EXISTS idx_admin_emails_is_starred ON admin_emails(is_starred);
 
 -- RLS: Gmail Accounts
 ALTER TABLE admin_gmail_accounts ENABLE ROW LEVEL SECURITY;

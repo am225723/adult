@@ -130,6 +130,10 @@ Deno.serve(async (req: Request) => {
     "https://www.googleapis.com/oauth2/v2/userinfo",
     { headers: { Authorization: `Bearer ${access_token}` } },
   );
+  if (!infoRes.ok) {
+    console.error("Userinfo fetch failed:", await infoRes.text());
+    return Response.redirect(`${appOrigin}/mail?error=userinfo_failed`);
+  }
   const { email: googleEmail } = await infoRes.json();
 
   // Encrypt tokens

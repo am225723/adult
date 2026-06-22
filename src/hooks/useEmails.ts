@@ -7,10 +7,10 @@ export interface Email {
   external_message_id: string;
   from_addr: string | null;
   to_addr: string | null;
-  subject: string;
-  snippet: string;
-  body: string;
-  received_at: string;
+  subject: string | null;
+  snippet: string | null;
+  body: string | null;
+  received_at: string | null;
   is_read: boolean;
   is_starred: boolean;
   labels: string[];
@@ -26,7 +26,9 @@ export function useEmails(filter: EmailFilter = "inbox") {
     queryFn: async () => {
       let query = supabase
         .from("admin_emails")
-        .select("*")
+        .select(
+          "id, external_message_id, from_addr, to_addr, subject, snippet, received_at, is_read, is_starred, labels",
+        )
         .order("received_at", { ascending: false })
         .limit(50);
 

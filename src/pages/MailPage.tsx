@@ -81,7 +81,11 @@ export function MailPage() {
 
   const { data: account, isLoading: accountLoading, refetch: refetchAccount } =
     useGmailAccount();
-  const { data: emails = [], isLoading: emailsLoading } = useEmails(filter);
+  const {
+    data: emails = [],
+    isLoading: emailsLoading,
+    refetch: refetchEmails,
+  } = useEmails(filter);
 
   // Handle OAuth redirect back
   useEffect(() => {
@@ -132,8 +136,8 @@ export function MailPage() {
         body: JSON.stringify({ gmail_account_id: account.id }),
       });
       if (!res.ok) throw new Error(`Sync returned ${res.status}`);
+      await Promise.all([refetchAccount(), refetchEmails()]);
       toast({ title: "Gmail synced" });
-      refetchAccount();
     } catch {
       toast({ variant: "destructive", title: "Sync failed" });
     } finally {

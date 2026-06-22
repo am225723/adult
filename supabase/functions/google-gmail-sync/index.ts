@@ -16,8 +16,16 @@ Deno.serve(async (req: Request) => {
   }
 
   let gmailAccountId: string | null = null;
+  let callerUserId: string | null = null;
 
   if (req.method === "POST") {
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user } } = await supabase.auth.getUser(token);
+      callerUserId = user?.id ?? null;
+    }
+
     try {
       const body = await req.json();
       gmailAccountId = body.gmail_account_id ?? null;
@@ -34,6 +42,9 @@ Deno.serve(async (req: Request) => {
 
   if (gmailAccountId) {
     accountQuery.eq("id", gmailAccountId);
+    if (callerUserId) {
+      accountQuery.eq("user_id", callerUserId);
+    }
   }
 
   const { data: accounts, error: fetchErr } = await accountQuery;
@@ -61,7 +72,7 @@ Deno.serve(async (req: Request) => {
   });
 });
 
-async function syncAccount(account: any, retryCount = 0): Promise<number> {
+async function syncAccount(account: any): Promise<number> {
   const accessToken = await getAccessToken(
     account,
     supabase,
@@ -71,18 +82,12 @@ async function syncAccount(account: any, retryCount = 0): Promise<number> {
   );
 
   let syncedCount = 0;
-  let pageToken: string | undefined;
-  let historyId: string | undefined;
 
-  // Get inbox messages (fetch last 50 for now; in production use historyId for incremental)
+  // Fetch last 50 inbox messages (full sync; history.list for incremental sync in future)
   const params = new URLSearchParams({
     q: "in:inbox",
     maxResults: "50",
   });
-
-  if (account.sync_token) {
-    params.set("pageToken", account.sync_token);
-  }
 
   const listRes = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages?${params}`,
@@ -90,20 +95,10 @@ async function syncAccount(account: any, retryCount = 0): Promise<number> {
   );
 
   if (!listRes.ok) {
-    if (listRes.status === 410 && retryCount < 1) {
-      // Incremental token expired, do full sync
-      await supabase
-        .from("admin_gmail_accounts")
-        .update({ sync_token: null })
-        .eq("id", account.id);
-      return syncAccount({ ...account, sync_token: null }, retryCount + 1);
-    }
     throw new Error(`Gmail API error ${listRes.status}: ${await listRes.text()}`);
   }
 
   const listData = await listRes.json();
-  pageToken = listData.nextPageToken;
-  historyId = listData.resultSizeEstimate ? String(listData.resultSizeEstimate) : undefined;
 
   const messageIds: string[] = listData.messages?.map((m: any) => m.id) ?? [];
 
@@ -125,8 +120,8 @@ async function syncAccount(account: any, retryCount = 0): Promise<number> {
       workspace_id: account.workspace_id,
       gmail_account_id: account.id,
       external_message_id: msgId,
-      from: getHeader("From"),
-      to: getHeader("To"),
+      from_addr: getHeader("From"),
+      to_addr: getHeader("To"),
       subject: getHeader("Subject") ?? "(No subject)",
       snippet: msg.snippet ?? "",
       body: extractBody(msg.payload),
@@ -144,11 +139,10 @@ async function syncAccount(account: any, retryCount = 0): Promise<number> {
     if (!error) syncedCount++;
   }
 
-  // Save sync token
+  // Update last_synced_at
   await supabase
     .from("admin_gmail_accounts")
     .update({
-      sync_token: pageToken ?? null,
       last_synced_at: new Date().toISOString(),
     })
     .eq("id", account.id);
