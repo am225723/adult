@@ -268,7 +268,28 @@ export function GlobalSearch({ open, onClose }: Props) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-xl bg-background border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Global search"
+        className="w-full max-w-xl bg-background border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+        onKeyDown={(e) => {
+          if (e.key === "Tab") {
+            const focusable = e.currentTarget.querySelectorAll<HTMLElement>(
+              'input, button, [href], [tabindex]:not([tabindex="-1"])'
+            );
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+              e.preventDefault();
+              last?.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+              e.preventDefault();
+              first?.focus();
+            }
+          }
+        }}
+      >
         {/* Search input */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
           <Search size={16} className="text-muted-foreground shrink-0" />
@@ -289,6 +310,7 @@ export function GlobalSearch({ open, onClose }: Props) {
           {rawQuery && (
             <button
               onClick={() => setRawQuery("")}
+              aria-label="Clear search query"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               <X size={15} />
@@ -382,6 +404,7 @@ export function GlobalSearch({ open, onClose }: Props) {
                   </button>
                   <button
                     onClick={() => deleteSaved.mutate(s.id)}
+                    aria-label={`Delete saved search ${s.name}`}
                     className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
                   >
                     <Trash2 size={13} />
@@ -435,7 +458,11 @@ export function GlobalSearch({ open, onClose }: Props) {
                   onChange={(e) => setSaveName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSave();
-                    if (e.key === "Escape") setShowSaveInput(false);
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowSaveInput(false);
+                    }
                   }}
                   className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
                 />

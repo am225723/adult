@@ -48,10 +48,17 @@ export function AppLayout() {
   const { theme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // Global Cmd/Ctrl+K shortcut
+  // Global Cmd/Ctrl+K shortcut — skip editable fields and key repeat
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if (e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        !!target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && !isEditable) {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
       }

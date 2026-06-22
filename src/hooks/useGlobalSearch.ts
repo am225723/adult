@@ -334,12 +334,12 @@ export function useGlobalSearch(
 
       const [tasks, emails, contacts, messages, calls, voicemails] =
         await Promise.all([
-          runTask && !onlyVoicemails ? searchTasks(q, qf) : Promise.resolve([]),
+          runTask && !onlyVoicemails && !onlyMissed ? searchTasks(q, qf) : Promise.resolve([]),
           runEmail && !onlyVoicemails && !onlyMissed ? searchEmails(q, qf) : Promise.resolve([]),
           runContact && !onlyVoicemails && !onlyMissed ? searchContacts(q) : Promise.resolve([]),
           runMessage && !onlyVoicemails && !onlyMissed ? searchMessages(q, qf) : Promise.resolve([]),
           runCall && !onlyVoicemails ? searchCalls(q, qf) : Promise.resolve([]),
-          runVoicemail ? searchVoicemails(q, qf) : Promise.resolve([]),
+          runVoicemail && !onlyMissed ? searchVoicemails(q, qf) : Promise.resolve([]),
         ]);
 
       const all = [
