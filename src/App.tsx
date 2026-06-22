@@ -8,6 +8,7 @@ import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import { TasksPage } from "@/pages/TasksPage";
+import { MailPage } from "@/pages/MailPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 
 const queryClient = new QueryClient({
@@ -38,10 +39,7 @@ export default function App() {
                 path="/chat"
                 element={<PlaceholderPage title="Chat" />}
               />
-              <Route
-                path="/mail"
-                element={<PlaceholderPage title="Mail" />}
-              />
+              <Route path="/mail" element={<MailPage />} />
               <Route
                 path="/phone"
                 element={<PlaceholderPage title="Phone" />}
