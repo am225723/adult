@@ -12,8 +12,10 @@ export interface ContactNote {
 }
 
 export function useContactNotes(contactId: string) {
+  const { user } = useAuth();
+
   return useQuery<ContactNote[]>({
-    queryKey: ["contact-notes", contactId],
+    queryKey: ["contact-notes", user?.id, contactId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_contact_notes")
@@ -24,7 +26,7 @@ export function useContactNotes(contactId: string) {
       if (error) throw error;
       return (data ?? []) as ContactNote[];
     },
-    enabled: !!contactId,
+    enabled: !!user && !!contactId,
   });
 }
 
@@ -57,13 +59,14 @@ export function useCreateContactNote() {
       return data;
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["contact-notes", vars.contactId] });
+      qc.invalidateQueries({ queryKey: ["contact-notes", user?.id, vars.contactId] });
     },
   });
 }
 
 export function useUpdateContactNote() {
   const qc = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({
@@ -85,13 +88,14 @@ export function useUpdateContactNote() {
       return data;
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["contact-notes", vars.contactId] });
+      qc.invalidateQueries({ queryKey: ["contact-notes", user?.id, vars.contactId] });
     },
   });
 }
 
 export function useDeleteContactNote() {
   const qc = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, contactId }: { id: string; contactId: string }) => {
@@ -102,7 +106,7 @@ export function useDeleteContactNote() {
       if (error) throw error;
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["contact-notes", vars.contactId] });
+      qc.invalidateQueries({ queryKey: ["contact-notes", user?.id, vars.contactId] });
     },
   });
 }

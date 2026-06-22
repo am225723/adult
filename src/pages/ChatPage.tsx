@@ -172,6 +172,7 @@ function ConversationDetail({
                 to={`/contacts/${conversation.contactId}`}
                 className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
                 title="View contact profile"
+                aria-label="View contact profile"
               >
                 <ExternalLink size={12} />
               </Link>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -187,31 +187,24 @@ function TaskCard({ item }: { item: Extract<Activity, { kind: "task" }> }) {
 function NoteCard({
   item,
   contactId,
+  editing,
+  onEditingChange,
 }: {
   item: Extract<Activity, { kind: "note" }>;
   contactId: string;
+  editing: boolean;
+  onEditingChange: (next: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.body);
   const updateNote = useUpdateContactNote();
-  const deleteNote = useDeleteContactNote();
 
   function handleSave() {
     if (!draft.trim()) return;
     updateNote.mutate(
       { id: item.id, body: draft.trim(), contactId },
       {
-        onSuccess: () => setEditing(false),
+        onSuccess: () => onEditingChange(false),
         onError: () => toast({ variant: "destructive", title: "Failed to update note" }),
-      }
-    );
-  }
-
-  function handleDelete() {
-    deleteNote.mutate(
-      { id: item.id, contactId },
-      {
-        onError: () => toast({ variant: "destructive", title: "Failed to delete note" }),
       }
     );
   }
@@ -226,7 +219,7 @@ function NoteCard({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSave();
-              if (e.key === "Escape") { setDraft(item.body); setEditing(false); }
+              if (e.key === "Escape") { setDraft(item.body); onEditingChange(false); }
             }}
             className="w-full text-sm bg-muted rounded p-2 outline-none resize-none min-h-[60px]"
             rows={3}
@@ -240,7 +233,7 @@ function NoteCard({
               Save
             </button>
             <button
-              onClick={() => { setDraft(item.body); setEditing(false); }}
+              onClick={() => { setDraft(item.body); onEditingChange(false); }}
               className="text-xs text-muted-foreground"
             >
               Cancel
@@ -315,7 +308,12 @@ function ActivityRow({ activity, contactId }: { activity: Activity; contactId: s
       {activity.kind === "sms" && <SmsCard item={activity} />}
       {activity.kind === "task" && <TaskCard item={activity} />}
       {activity.kind === "note" && (
-        <NoteCard item={activity} contactId={contactId} />
+        <NoteCard
+          item={activity}
+          contactId={contactId}
+          editing={editingNote}
+          onEditingChange={setEditingNote}
+        />
       )}
 
       <div className="flex items-center gap-2 shrink-0 mt-0.5">
@@ -434,20 +432,23 @@ function ContactDetailView({ id }: { id: string }) {
   const { data: tasks = [] } = useContactTasks(id);
   const { data: notes = [] } = useContactNotes(id);
 
-  // Workspace ID — needed to create notes
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  // Resolve workspace once user is known
-  useState(() => {
-    if (!user) return;
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setWorkspaceId(null);
+      return;
+    }
     supabase
       .from("admin_workspace_members")
       .select("workspace_id")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (data?.workspace_id) setWorkspaceId(data.workspace_id);
+        if (!cancelled) setWorkspaceId(data?.workspace_id ?? null);
       });
-  });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   if (isLoading) return <LoadingSpinner message="Loading contact…" />;
   if (error || !contact) {
