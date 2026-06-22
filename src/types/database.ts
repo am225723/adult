@@ -313,6 +313,58 @@ export type Database = {
           },
         ]
       }
+      admin_contact_notes: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          contact_id: string
+          created_by: string | null
+          body: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          contact_id: string
+          created_by?: string | null
+          body: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          contact_id?: string
+          created_by?: string | null
+          body?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_contact_notes_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_contact_notes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "admin_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_contact_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_contact_emails: {
         Row: {
           contact_id: string | null

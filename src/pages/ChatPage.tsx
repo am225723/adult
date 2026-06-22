@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { MessageSquare, X, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { MessageSquare, X, Plus, ExternalLink } from "lucide-react";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { usePhoneMessages, type PhoneMessage } from "@/hooks/usePhoneMessages";
+import { useContacts } from "@/hooks/useContacts";
 import { useContact } from "@/hooks/useContact";
 import { useCreateTask } from "@/hooks/useTasks";
 import { toast } from "@/hooks/useToast";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/lib/supabase";
 
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "unknown";
@@ -20,7 +21,20 @@ function relativeTime(iso: string | null | undefined): string {
   if (diffMins < 60) return `${diffMins}m`;
   if (diffHours < 24) return `${diffHours}h`;
   if (diffDays < 7) return `${diffDays}d`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function dateSeparatorLabel(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  if (isToday) return "Today";
+  if (isYesterday) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
 function groupMessagesByContact(messages: PhoneMessage[]) {
@@ -97,7 +111,9 @@ function ConversationDetail({
 }) {
   const createTask = useCreateTask();
   const [creatingTask, setCreatingTask] = useState(false);
-  const { data: contact } = useContact(conversation.contactId);
+  const { data: contact } = useContact(
+    conversation.contactId !== "unknown" ? conversation.contactId : ""
+  );
 
   async function handleCreateTask() {
     const lastMsg = conversation.lastMessage;
@@ -123,73 +139,117 @@ function ConversationDetail({
     );
   }
 
+  // Build chronological messages with date separators
+  const chronological = conversation.messages.slice().reverse();
+  type MessageItem =
+    | { type: "separator"; label: string; key: string }
+    | { type: "message"; msg: PhoneMessage };
+  const items: MessageItem[] = [];
+  let lastDateLabel = "";
+  for (const msg of chronological) {
+    const label = dateSeparatorLabel(msg.occurred_at);
+    if (label && label !== lastDateLabel) {
+      items.push({ type: "separator", label, key: `sep-${msg.id}` });
+      lastDateLabel = label;
+    }
+    items.push({ type: "message", msg });
+  }
+
   return (
     <div className="w-full md:w-96 shrink-0 md:border-l border-t md:border-t-0 border-border flex flex-col h-full bg-card">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Conversation
           </p>
-          <p className="text-sm font-medium text-foreground mt-0.5">
-            {conversation.contactName}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-sm font-medium text-foreground truncate">
+              {conversation.contactName}
+            </p>
+            {conversation.contactId !== "unknown" && (
+              <Link
+                to={`/contacts/${conversation.contactId}`}
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                title="View contact profile"
+              >
+                <ExternalLink size={12} />
+              </Link>
+            )}
+          </div>
         </div>
         <button
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted"
           onClick={onClose}
+          aria-label="Close conversation"
         >
           <X size={14} />
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-auto p-3 space-y-3">
-        {conversation.messages.slice().reverse().map((msg, idx) => (
-          <div
-            key={msg.id}
-            className={cn(
-              "flex gap-2",
-              msg.direction === "incoming" ? "flex-row" : "flex-row-reverse",
-            )}
-          >
-            <div className={cn(
-              "max-w-xs rounded-lg px-3 py-2",
-              msg.direction === "incoming"
-                ? "bg-muted text-foreground"
-                : "bg-primary text-primary-foreground",
-            )}>
-              <p className="text-sm break-words">{msg.body || "(empty message)"}</p>
-              <p className={cn(
-                "text-xs mt-1",
+      <div className="flex-1 overflow-auto p-3 space-y-1">
+        {items.map((item) => {
+          if (item.type === "separator") {
+            return (
+              <div key={item.key} className="flex items-center gap-2 py-2">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[10px] text-muted-foreground font-medium shrink-0">
+                  {item.label}
+                </span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            );
+          }
+          const msg = item.msg;
+          return (
+            <div
+              key={msg.id}
+              className={cn(
+                "flex gap-2",
+                msg.direction === "incoming" ? "flex-row" : "flex-row-reverse",
+              )}
+            >
+              <div className={cn(
+                "max-w-xs rounded-lg px-3 py-2",
                 msg.direction === "incoming"
-                  ? "text-muted-foreground"
-                  : "text-primary-foreground/70",
+                  ? "bg-muted text-foreground"
+                  : "bg-primary text-primary-foreground",
               )}>
-                {msg.occurred_at ? relativeTime(msg.occurred_at) : "unknown"}
-              </p>
+                <p className="text-sm break-words">{msg.body || "(empty message)"}</p>
+                <p className={cn(
+                  "text-xs mt-1",
+                  msg.direction === "incoming"
+                    ? "text-muted-foreground"
+                    : "text-primary-foreground/70",
+                )}>
+                  {msg.occurred_at ? relativeTime(msg.occurred_at) : "unknown"}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Contact info */}
       {contact && (
-        <div className="border-t border-border p-3 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Contact info</p>
-          {contact.primary_phone && (
-            <a
-              href={`tel:${contact.primary_phone}`}
+        <div className="border-t border-border p-3 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Contact info</p>
+            <Link
+              to={`/contacts/${conversation.contactId}`}
               className="text-xs text-primary hover:underline"
             >
+              View profile
+            </Link>
+          </div>
+          {contact.primary_phone && (
+            <a href={`tel:${contact.primary_phone}`} className="text-xs text-primary hover:underline block">
               {contact.primary_phone}
             </a>
           )}
           {contact.primary_email && (
-            <a
-              href={`mailto:${contact.primary_email}`}
-              className="text-xs text-primary hover:underline block"
-            >
+            <a href={`mailto:${contact.primary_email}`} className="text-xs text-primary hover:underline block">
               {contact.primary_email}
             </a>
           )}
@@ -204,7 +264,7 @@ function ConversationDetail({
           className="w-full flex items-center justify-center gap-2 py-1.5 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
         >
           <Plus size={12} />
-          Create task
+          Create task from message
         </button>
       </div>
     </div>
@@ -213,13 +273,20 @@ function ConversationDetail({
 
 export function ChatPage() {
   const { data: messages = [], isLoading, error } = usePhoneMessages("all");
+  const { data: contacts = [] } = useContacts();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+
+  // Build a lookup map for contact display names
+  const contactNameMap = new Map(contacts.map((c) => [c.id, c.display_name]));
 
   const grouped = groupMessagesByContact(messages);
   const conversations: Conversation[] = Array.from(grouped.entries())
     .map(([contactId, msgs]) => ({
       contactId,
-      contactName: contactId === "unknown" ? "Unknown" : contactId,
+      contactName:
+        contactId === "unknown"
+          ? "Unknown"
+          : contactNameMap.get(contactId) ?? "Unknown",
       messages: msgs,
       lastMessage: msgs[0],
       unreadCount: msgs.filter((m) => !m.is_read).length,
@@ -281,7 +348,7 @@ export function ChatPage() {
 
       {/* Detail panel (desktop) */}
       {selectedConversation && (
-        <div className="hidden md:flex">
+        <div className="hidden md:flex flex-1">
           <ConversationDetail
             conversation={selectedConversation}
             onClose={() => setSelectedContactId(null)}
