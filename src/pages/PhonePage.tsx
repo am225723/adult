@@ -135,7 +135,7 @@ function ConnectPrompt() {
         </p>
       </div>
       <pre className="text-xs bg-muted rounded-lg px-4 py-3 text-left text-muted-foreground max-w-full overflow-x-auto">
-        {`supabase functions deploy quo-calls --no-verify-jwt`}
+        {`supabase functions deploy quo-messages quo-calls --no-verify-jwt`}
       </pre>
     </div>
   );
@@ -174,7 +174,7 @@ export function PhonePage() {
   const selectedPhone = phoneData?.data.find((p) => p.id === selectedPhoneId);
 
   // Fetch calls
-  const { data: callsData, isLoading: callsLoading } = useQuery({
+  const { data: callsData, isLoading: callsLoading, error: callsError } = useQuery({
     queryKey: ["quo-calls", selectedPhoneId, filter],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -208,6 +208,14 @@ export function PhonePage() {
 
   if (notConfigured) {
     return <ConnectPrompt />;
+  }
+
+  if (phonesError && !notConfigured) {
+    return (
+      <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+        Failed to load phone numbers.
+      </div>
+    );
   }
 
   return (
@@ -257,6 +265,10 @@ export function PhonePage() {
         {callsLoading ? (
           <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
             Loading calls…
+          </div>
+        ) : callsError ? (
+          <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
+            Failed to load calls.
           </div>
         ) : !callsData?.data.length ? (
           <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">

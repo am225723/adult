@@ -46,8 +46,16 @@ export function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
-  const { data: calendarAccount } = useCalendarAccount();
-  const { data: gmailAccount } = useGmailAccount();
+  const {
+    data: calendarAccount,
+    isLoading: calendarLoading,
+    isError: calendarError,
+  } = useCalendarAccount();
+  const {
+    data: gmailAccount,
+    isLoading: gmailLoading,
+    isError: gmailError,
+  } = useGmailAccount();
 
   const displayName =
     user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "User";
@@ -63,6 +71,12 @@ export function SettingsPage() {
     { value: "dark" as const, label: "Dark", icon: Moon },
     { value: "system" as const, label: "System", icon: Monitor },
   ];
+
+  function integrationStatus(loading: boolean, error: boolean, email?: string | null) {
+    if (loading) return "Checking connection…";
+    if (error) return "Connection status unavailable";
+    return email ? `Connected as ${email}` : "Not connected";
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-8">
@@ -92,15 +106,18 @@ export function SettingsPage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">Google Calendar</p>
             <p className="text-xs text-muted-foreground truncate">
-              {calendarAccount
-                ? `Connected as ${calendarAccount.external_account_email}`
-                : "Not connected"}
+              {integrationStatus(calendarLoading, calendarError, calendarAccount?.external_account_email)}
             </p>
           </div>
           {calendarAccount ? (
             <CheckCircle2 size={16} className="text-green-500 shrink-0" />
           ) : (
-            <Button size="sm" variant="outline" onClick={() => navigate("/calendar")}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate("/calendar")}
+              disabled={calendarLoading || calendarError}
+            >
               Connect
             </Button>
           )}
@@ -110,15 +127,18 @@ export function SettingsPage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">Gmail</p>
             <p className="text-xs text-muted-foreground truncate">
-              {gmailAccount
-                ? `Connected as ${gmailAccount.external_account_email}`
-                : "Not connected"}
+              {integrationStatus(gmailLoading, gmailError, gmailAccount?.external_account_email)}
             </p>
           </div>
           {gmailAccount ? (
             <CheckCircle2 size={16} className="text-green-500 shrink-0" />
           ) : (
-            <Button size="sm" variant="outline" onClick={() => navigate("/mail")}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate("/mail")}
+              disabled={gmailLoading || gmailError}
+            >
               Connect
             </Button>
           )}

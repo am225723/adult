@@ -13,9 +13,9 @@ import {
 import { toast } from "@/hooks/useToast";
 
 type ContactFormData = {
-  full_name: string;
-  email: string;
-  phone: string;
+  display_name: string;
+  primary_email: string;
+  primary_phone: string;
   company: string;
   notes: string;
 };
@@ -32,9 +32,9 @@ function ContactForm({
   loading: boolean;
 }) {
   const [form, setForm] = useState<ContactFormData>({
-    full_name: initial?.full_name ?? "",
-    email: initial?.email ?? "",
-    phone: initial?.phone ?? "",
+    display_name: initial?.display_name ?? "",
+    primary_email: initial?.primary_email ?? "",
+    primary_phone: initial?.primary_phone ?? "",
     company: initial?.company ?? "",
     notes: initial?.notes ?? "",
   });
@@ -47,8 +47,8 @@ function ContactForm({
       <div>
         <label className="text-xs font-medium text-muted-foreground">Name *</label>
         <Input
-          value={form.full_name}
-          onChange={(e) => set("full_name", e.target.value)}
+          value={form.display_name}
+          onChange={(e) => set("display_name", e.target.value)}
           placeholder="Full name"
           className="mt-1"
           autoFocus
@@ -57,8 +57,8 @@ function ContactForm({
       <div>
         <label className="text-xs font-medium text-muted-foreground">Email</label>
         <Input
-          value={form.email}
-          onChange={(e) => set("email", e.target.value)}
+          value={form.primary_email}
+          onChange={(e) => set("primary_email", e.target.value)}
           placeholder="email@example.com"
           type="email"
           className="mt-1"
@@ -67,8 +67,8 @@ function ContactForm({
       <div>
         <label className="text-xs font-medium text-muted-foreground">Phone</label>
         <Input
-          value={form.phone}
-          onChange={(e) => set("phone", e.target.value)}
+          value={form.primary_phone}
+          onChange={(e) => set("primary_phone", e.target.value)}
           placeholder="+1 555 000 0000"
           type="tel"
           className="mt-1"
@@ -97,8 +97,8 @@ function ContactForm({
         <Button
           size="sm"
           className="flex-1"
-          disabled={loading || !form.full_name.trim()}
-          onClick={() => form.full_name.trim() && onSave(form)}
+          disabled={loading || !form.display_name.trim()}
+          onClick={() => form.display_name.trim() && onSave(form)}
         >
           {loading ? "Saving…" : "Save"}
         </Button>
@@ -145,9 +145,9 @@ export function ContactsPage() {
   async function handleCreate(form: ContactFormData) {
     try {
       const c = await createContact.mutateAsync({
-        full_name: form.full_name,
-        email: form.email || null,
-        phone: form.phone || null,
+        display_name: form.display_name,
+        primary_email: form.primary_email || null,
+        primary_phone: form.primary_phone || null,
         company: form.company || null,
         notes: form.notes || null,
       });
@@ -164,9 +164,9 @@ export function ContactsPage() {
     try {
       const c = await updateContact.mutateAsync({
         id: selected.id,
-        full_name: form.full_name,
-        email: form.email || null,
-        phone: form.phone || null,
+        display_name: form.display_name,
+        primary_email: form.primary_email || null,
+        primary_phone: form.primary_phone || null,
         company: form.company || null,
         notes: form.notes || null,
       });
@@ -248,11 +248,11 @@ export function ContactsPage() {
                   selected?.id === c.id && !showAdd && "bg-muted",
                 )}
               >
-                <Avatar name={c.full_name} />
+                <Avatar name={c.display_name} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{c.full_name}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{c.display_name}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {c.company ?? c.email ?? c.phone ?? "No details"}
+                    {c.company ?? c.primary_email ?? c.primary_phone ?? "No details"}
                   </p>
                 </div>
               </button>
@@ -287,10 +287,10 @@ export function ContactsPage() {
             <div className="max-w-md mx-auto px-6 py-8 space-y-6">
               {/* Contact header */}
               <div className="flex items-center gap-4">
-                <Avatar name={selected.full_name} size="lg" />
+                <Avatar name={selected.display_name} size="lg" />
                 <div className="flex-1 min-w-0">
                   <h1 className="text-lg font-semibold text-foreground truncate">
-                    {selected.full_name}
+                    {selected.display_name}
                   </h1>
                   {selected.company && (
                     <p className="text-sm text-muted-foreground">{selected.company}</p>
@@ -314,32 +314,32 @@ export function ContactsPage() {
               </div>
 
               {/* Details */}
-              {(selected.email || selected.phone || selected.company || selected.notes) ? (
+              {(selected.primary_email || selected.primary_phone || selected.company || selected.notes) ? (
                 <div className="rounded-xl border border-border bg-card divide-y divide-border">
-                  {selected.email && (
+                  {selected.primary_email && (
                     <div className="flex items-center gap-3 px-4 py-3">
                       <Mail size={14} className="text-muted-foreground shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Email</p>
                         <a
-                          href={`mailto:${selected.email}`}
+                          href={`mailto:${selected.primary_email}`}
                           className="text-sm text-foreground hover:text-primary truncate block"
                         >
-                          {selected.email}
+                          {selected.primary_email}
                         </a>
                       </div>
                     </div>
                   )}
-                  {selected.phone && (
+                  {selected.primary_phone && (
                     <div className="flex items-center gap-3 px-4 py-3">
                       <Phone size={14} className="text-muted-foreground shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Phone</p>
                         <a
-                          href={`tel:${selected.phone}`}
+                          href={`tel:${selected.primary_phone}`}
                           className="text-sm text-foreground hover:text-primary"
                         >
-                          {selected.phone}
+                          {selected.primary_phone}
                         </a>
                       </div>
                     </div>

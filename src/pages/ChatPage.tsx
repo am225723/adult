@@ -103,7 +103,7 @@ export function ChatPage() {
   const selectedPhone = phoneData?.data.find((p) => p.id === selectedPhoneId);
 
   // Fetch messages for selected inbox
-  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+  const { data: messagesData, isLoading: messagesLoading, error: messagesError } = useQuery({
     queryKey: ["quo-messages", selectedPhoneId],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -151,7 +151,6 @@ export function ChatPage() {
   // Messages for the selected conversation thread
   const thread = useMemo((): QuoMessage[] => {
     if (!selectedParticipant || !messagesData) return [];
-    const myNumber = selectedPhone?.phoneNumber ?? "";
     return (messagesData.data ?? [])
       .filter((msg) => {
         const other =
@@ -162,7 +161,7 @@ export function ChatPage() {
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
-  }, [messagesData, selectedParticipant, selectedPhone]);
+  }, [messagesData, selectedParticipant]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -208,7 +207,7 @@ export function ChatPage() {
     );
   }
 
-  if (notConfigured || (!phonesLoading && !phoneData?.data?.length && !phonesError)) {
+  if (notConfigured) {
     return <ConnectPrompt />;
   }
 
@@ -254,6 +253,8 @@ export function ChatPage() {
         <div className="flex-1 overflow-auto">
           {messagesLoading ? (
             <p className="text-xs text-muted-foreground text-center py-8">Loading…</p>
+          ) : messagesError ? (
+            <p className="text-xs text-muted-foreground text-center py-8">Failed to load messages.</p>
           ) : conversations.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-8">No messages yet.</p>
           ) : (

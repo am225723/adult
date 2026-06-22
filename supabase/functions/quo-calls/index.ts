@@ -13,6 +13,14 @@ const quoHeaders = () => ({
   "Content-Type": "application/json",
 });
 
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -56,7 +64,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     const params = new URLSearchParams({ phoneNumberId, maxResults: "50" });
-    const res = await fetch(`${QUO_BASE}/calls?${params}`, { headers: quoHeaders() });
+    const res = await fetchWithTimeout(`${QUO_BASE}/calls?${params}`, {
+      headers: quoHeaders(),
+    });
 
     if (!res.ok) {
       return new Response(await res.text(), {

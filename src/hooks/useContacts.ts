@@ -5,14 +5,22 @@ import { useAuth } from "@/hooks/useAuth";
 export interface Contact {
   id: string;
   workspace_id: string;
-  full_name: string;
-  email: string | null;
-  phone: string | null;
+  display_name: string;
+  primary_email: string | null;
+  primary_phone: string | null;
   company: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
 }
+
+type ContactEditable = {
+  display_name?: string;
+  primary_email?: string | null;
+  primary_phone?: string | null;
+  company?: string | null;
+  notes?: string | null;
+};
 
 export function useContacts(search = "") {
   const { user } = useAuth();
@@ -21,10 +29,10 @@ export function useContacts(search = "") {
     queryFn: async () => {
       let query = supabase
         .from("admin_contacts")
-        .select("*")
-        .order("full_name");
+        .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
+        .order("display_name");
       if (search.trim()) {
-        query = query.ilike("full_name", `%${search.trim()}%`);
+        query = query.ilike("display_name", `%${search.trim()}%`);
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -39,6 +47,7 @@ async function getWorkspaceId(userId: string): Promise<string> {
     .from("admin_workspace_members")
     .select("workspace_id")
     .eq("user_id", userId)
+    .limit(1)
     .single();
   if (error || !data) throw new Error("No workspace found");
   return data.workspace_id;
@@ -49,9 +58,9 @@ export function useCreateContact() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (contact: {
-      full_name: string;
-      email?: string | null;
-      phone?: string | null;
+      display_name: string;
+      primary_email?: string | null;
+      primary_phone?: string | null;
       company?: string | null;
       notes?: string | null;
     }) => {
@@ -60,7 +69,7 @@ export function useCreateContact() {
       const { data, error } = await supabase
         .from("admin_contacts")
         .insert({ workspace_id: wsId, ...contact })
-        .select()
+        .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
         .single();
       if (error) throw error;
       return data as Contact;
@@ -72,15 +81,12 @@ export function useCreateContact() {
 export function useUpdateContact() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      id,
-      ...updates
-    }: Partial<Omit<Contact, "id">> & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: { id: string } & ContactEditable) => {
       const { data, error } = await supabase
         .from("admin_contacts")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
-        .select()
+        .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
         .single();
       if (error) throw error;
       return data as Contact;

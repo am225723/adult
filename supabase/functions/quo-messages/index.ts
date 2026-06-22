@@ -13,6 +13,14 @@ const quoHeaders = () => ({
   "Content-Type": "application/json",
 });
 
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -48,7 +56,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (req.method === "GET" && action === "phone-numbers") {
-      const res = await fetch(`${QUO_BASE}/phone-numbers`, { headers: quoHeaders() });
+      const res = await fetchWithTimeout(`${QUO_BASE}/phone-numbers`, {
+        headers: quoHeaders(),
+      });
       return new Response(await res.text(), {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -71,7 +81,9 @@ Deno.serve(async (req: Request) => {
       if (participant) params.append("participants[]", participant);
       if (pageToken) params.set("pageToken", pageToken);
 
-      const res = await fetch(`${QUO_BASE}/messages?${params}`, { headers: quoHeaders() });
+      const res = await fetchWithTimeout(`${QUO_BASE}/messages?${params}`, {
+        headers: quoHeaders(),
+      });
       return new Response(await res.text(), {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,8 +91,17 @@ Deno.serve(async (req: Request) => {
     }
 
     if (req.method === "POST") {
-      const { from, to, content } = await req.json();
-      const res = await fetch(`${QUO_BASE}/messages`, {
+      const body = await req.json().catch(() => null);
+      const { from, to, content } = body ?? {};
+
+      if (!from || !to || !content) {
+        return new Response(JSON.stringify({ error: "from, to, and content are required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const res = await fetchWithTimeout(`${QUO_BASE}/messages`, {
         method: "POST",
         headers: quoHeaders(),
         body: JSON.stringify({ from, to, content }),
