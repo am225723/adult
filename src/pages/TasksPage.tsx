@@ -517,7 +517,14 @@ function TaskDetail({
     const prev = task.assigned_to;
     const next = newId || null;
     setAssignedTo(newId);
-    save({ assigned_to: next });
+
+    try {
+      await updateTask.mutateAsync({ id: task.id, assigned_to: next });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save" });
+      setAssignedTo(prev ?? "");
+      return;
+    }
 
     if (next && next !== prev && next !== user?.id) {
       try {
