@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { useTasks } from "@/hooks/useTasks";
@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Plus,
   MessageCircle,
+  X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,8 @@ export function DashboardPage() {
     return d;
   }, [todayStart]);
 
+  const [overdueDismissed, setOverdueDismissed] = useState(false);
+
   const { data: todayEvents = [] } = useCalendarEvents(todayStart, todayEnd);
   const { data: todayTasks = [] } = useTasks("today");
   const { data: overdueTasks = [] } = useTasks("overdue");
@@ -100,6 +103,27 @@ export function DashboardPage() {
           {greeting()}, {name}.
         </h1>
       </div>
+
+      {/* Overdue tasks alert */}
+      {overdueCount > 0 && !overdueDismissed && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive">
+          <AlertCircle size={14} className="shrink-0" />
+          <p className="text-sm flex-1">
+            You have{" "}
+            <Link to="/tasks" className="font-medium underline underline-offset-2 hover:opacity-80">
+              {overdueCount} overdue task{overdueCount !== 1 ? "s" : ""}
+            </Link>{" "}
+            — review them now to stay on track.
+          </p>
+          <button
+            onClick={() => setOverdueDismissed(true)}
+            className="shrink-0 hover:opacity-70 transition-opacity"
+            aria-label="Dismiss"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div className="flex gap-2 flex-wrap">

@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { Navigate } from "react-router-dom";
 import { toast } from "@/hooks/useToast";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { NotificationCenter } from "@/components/NotificationCenter";
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Today" },
@@ -161,6 +162,9 @@ export function AppLayout() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Notification center */}
+          <NotificationCenter />
 
           {/* Settings */}
           <NavLink
