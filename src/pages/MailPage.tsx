@@ -1,8 +1,18 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Mail, RefreshCw, X, Flag, CheckCircle2, Plus } from "lucide-react";
+import { Mail, RefreshCw, X, Flag, CheckCircle2, Plus, Reply, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorState } from "@/components/ErrorState";
 import { cn } from "@/lib/utils";
@@ -15,6 +25,201 @@ import { supabase } from "@/lib/supabase";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const FN_BASE = `${SUPABASE_URL}/functions/v1`;
+
+// ── Compose / Reply Dialogs ────────────────────────────────────────────────────
+
+function ComposeDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { session } = useAuth();
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  function reset() {
+    setTo("");
+    setSubject("");
+    setBody("");
+  }
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!session) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${FN_BASE}/google-gmail-write`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "send-new", to: to.trim(), subject: subject.trim(), body }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      toast({ title: "Email sent" });
+      reset();
+      onOpenChange(false);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to send email", description: String(err) });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New email</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSend} className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="compose-to">To</Label>
+            <Input
+              id="compose-to"
+              type="email"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="recipient@example.com"
+              autoFocus
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="compose-subject">Subject</Label>
+            <Input
+              id="compose-subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="compose-body">Message</Label>
+            <Textarea
+              id="compose-body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your message…"
+              rows={6}
+              required
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={sending || !to.trim() || !subject.trim() || !body.trim()}>
+              {sending ? "Sending…" : "Send email"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReplyDialog({
+  email,
+  open,
+  onOpenChange,
+}: {
+  email: Email | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { session } = useAuth();
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (open) setBody("");
+  }, [open]);
+
+  if (!email) return null;
+
+  const replyTo = email.from_address ?? "";
+  const replySubject = email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject ?? ""}`;
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!session || !email) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${FN_BASE}/google-gmail-write`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "send-reply",
+          to: replyTo,
+          subject: replySubject,
+          body,
+          gmail_message_id: email.gmail_message_id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      toast({ title: "Reply sent" });
+      onOpenChange(false);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to send reply", description: String(err) });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reply to email</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1 text-sm">
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">To:</span> {replyTo}
+          </p>
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">Subject:</span> {replySubject}
+          </p>
+        </div>
+        <form onSubmit={handleSend} className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="reply-body">Message</Label>
+            <Textarea
+              id="reply-body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your reply…"
+              rows={6}
+              autoFocus
+              required
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={sending || !body.trim()}>
+              {sending ? "Sending…" : "Send reply"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Connect Prompt ─────────────────────────────────────────────────────────────
 
 function ConnectPrompt({ onConnect }: { onConnect: () => void }) {
   return (
@@ -95,9 +300,11 @@ function EmailRow({
 function EmailDetail({
   email,
   onClose,
+  onReply,
 }: {
   email: Email;
   onClose: () => void;
+  onReply: (email: Email) => void;
 }) {
   const createTask = useCreateTask();
   const [creatingTask, setCreatingTask] = useState(false);
@@ -228,6 +435,13 @@ function EmailDetail({
       {/* Actions */}
       <div className="border-t border-border shrink-0 p-3 space-y-2">
         <button
+          onClick={() => onReply(email)}
+          className="w-full flex items-center justify-center gap-2 py-1.5 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors font-medium"
+        >
+          <Reply size={12} />
+          Reply
+        </button>
+        <button
           onClick={() => handleMarkRead(!email.is_read)}
           className="w-full flex items-center justify-center gap-2 py-1.5 text-xs hover:bg-muted rounded-lg transition-colors"
         >
@@ -258,6 +472,8 @@ export function MailPage() {
   const [filter, setFilter] = useState<EmailFilter>("inbox");
   const [syncing, setSyncing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [replyEmail, setReplyEmail] = useState<Email | null>(null);
 
   const { session } = useAuth();
   const [searchParams] = useSearchParams();
@@ -382,16 +598,22 @@ export function MailPage() {
           <div className="flex-1" />
 
           {account && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleSync}
-              disabled={syncing}
-              title="Sync Gmail"
-            >
-              <RefreshCw size={14} className={cn(syncing && "animate-spin")} />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleSync}
+                disabled={syncing}
+                title="Sync Gmail"
+              >
+                <RefreshCw size={14} className={cn(syncing && "animate-spin")} />
+              </Button>
+              <Button size="sm" onClick={() => setComposeOpen(true)}>
+                <PenLine size={14} className="mr-1" />
+                Compose
+              </Button>
+            </>
           )}
         </div>
 
@@ -440,6 +662,7 @@ export function MailPage() {
           <EmailDetail
             email={selectedEmail}
             onClose={() => setSelectedEmail(null)}
+            onReply={(e) => setReplyEmail(e)}
           />
         </div>
       )}
@@ -450,9 +673,17 @@ export function MailPage() {
           <EmailDetail
             email={selectedEmail}
             onClose={() => setSelectedEmail(null)}
+            onReply={(e) => setReplyEmail(e)}
           />
         </div>
       )}
+
+      <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} />
+      <ReplyDialog
+        email={replyEmail}
+        open={!!replyEmail}
+        onOpenChange={(v) => { if (!v) setReplyEmail(null); }}
+      />
     </div>
   );
 }

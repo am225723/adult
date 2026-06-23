@@ -8,7 +8,18 @@ import {
   ChevronRight,
   X,
   Plus,
+  MessageSquare,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +28,109 @@ import { useContact } from "@/hooks/useContact";
 import { useCreateTask } from "@/hooks/useTasks";
 import { toast } from "@/hooks/useToast";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const FN_BASE = `${SUPABASE_URL}/functions/v1`;
+
 type CallFilter = "missed" | "all";
+
+// ── SMS Reply Dialog ───────────────────────────────────────────────────────────
+
+function SendSmsDialog({
+  toNumber,
+  open,
+  onOpenChange,
+}: {
+  toNumber: string;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { session } = useAuth();
+  const [body, setBody] = useState("");
+  const [phoneNumbers, setPhoneNumbers] = useState<Array<{ id: string; phoneNumber: string; name?: string }>>([]);
+  const [fromId, setFromId] = useState("");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (!open || !session) return;
+    setBody("");
+    fetch(`${FN_BASE}/quo-messages?action=phone-numbers`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const nums = data?.data ?? [];
+        setPhoneNumbers(nums);
+        if (nums.length > 0) setFromId(nums[0].id);
+      })
+      .catch(() => {});
+  }, [open, session]);
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!session || !fromId) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${FN_BASE}/quo-messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ from: fromId, to: toNumber, content: body }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send SMS");
+      toast({ title: "SMS sent" });
+      setBody("");
+      onOpenChange(false);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to send SMS", description: String(err) });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Send SMS</DialogTitle>
+        </DialogHeader>
+        <div className="text-sm text-muted-foreground space-y-1">
+          <p><span className="font-medium text-foreground">To:</span> {toNumber}</p>
+          {phoneNumbers.length > 0 && (
+            <p>
+              <span className="font-medium text-foreground">From:</span>{" "}
+              {phoneNumbers.find((n) => n.id === fromId)?.phoneNumber ?? fromId}
+            </p>
+          )}
+        </div>
+        <form onSubmit={handleSend} className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="sms-body">Message</Label>
+            <Textarea
+              id="sms-body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your message…"
+              rows={4}
+              autoFocus
+              required
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={sending || !body.trim() || !fromId}>
+              {sending ? "Sending…" : "Send SMS"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function relativeTime(iso: string): string {
   const d = new Date(iso);
@@ -99,9 +212,11 @@ function CallRow({
 function CallDetail({
   call,
   onClose,
+  onSendSms,
 }: {
   call: PhoneCall;
   onClose: () => void;
+  onSendSms: (toNumber: string) => void;
 }) {
   const createTask = useCreateTask();
   const [creatingTask, setCreatingTask] = useState(false);
@@ -233,7 +348,16 @@ function CallDetail({
       </div>
 
       {/* Actions */}
-      <div className="border-t border-border shrink-0 p-3">
+      <div className="border-t border-border shrink-0 p-3 space-y-2">
+        {contact?.primary_phone && (
+          <button
+            onClick={() => onSendSms(contact.primary_phone!)}
+            className="w-full flex items-center justify-center gap-2 py-1.5 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors font-medium"
+          >
+            <MessageSquare size={12} />
+            Reply via SMS
+          </button>
+        )}
         <button
           onClick={handleCreateTask}
           disabled={creatingTask}
@@ -269,6 +393,7 @@ function ConnectPrompt() {
 export function PhonePage() {
   const [filter, setFilter] = useState<CallFilter>("missed");
   const [selectedCall, setSelectedCall] = useState<PhoneCall | null>(null);
+  const [smsToNumber, setSmsToNumber] = useState<string | null>(null);
   const { data: calls = [], isLoading, error } = usePhoneCalls(filter);
 
   const TABS: { key: CallFilter; label: string }[] = [
@@ -340,16 +465,30 @@ export function PhonePage() {
       {/* Detail panel (desktop) */}
       {selectedCall && (
         <div className="hidden md:flex">
-          <CallDetail call={selectedCall} onClose={() => setSelectedCall(null)} />
+          <CallDetail
+            call={selectedCall}
+            onClose={() => setSelectedCall(null)}
+            onSendSms={(n) => setSmsToNumber(n)}
+          />
         </div>
       )}
 
       {/* Mobile detail modal */}
       {selectedCall && (
         <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex animate-in fade-in slide-in-from-bottom">
-          <CallDetail call={selectedCall} onClose={() => setSelectedCall(null)} />
+          <CallDetail
+            call={selectedCall}
+            onClose={() => setSelectedCall(null)}
+            onSendSms={(n) => setSmsToNumber(n)}
+          />
         </div>
       )}
+
+      <SendSmsDialog
+        toNumber={smsToNumber ?? ""}
+        open={!!smsToNumber}
+        onOpenChange={(v) => { if (!v) setSmsToNumber(null); }}
+      />
     </div>
   );
 }
