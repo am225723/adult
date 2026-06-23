@@ -23,8 +23,9 @@ export function useChatThreads() {
         .from("admin_workspace_members")
         .select("workspace_id")
         .eq("user_id", user!.id)
+        .order("workspace_id", { ascending: true })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (myErr || !my) return [];
 
       const { data, error } = await supabase
@@ -60,12 +61,14 @@ export function useCreateChatThread() {
 
   return useMutation({
     mutationFn: async (title: string) => {
+      if (!user?.id) throw new Error("Must be signed in to create a thread");
       const { data: my, error: myErr } = await supabase
         .from("admin_workspace_members")
         .select("workspace_id")
-        .eq("user_id", user!.id)
+        .eq("user_id", user.id)
+        .order("workspace_id", { ascending: true })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (myErr || !my) throw new Error("No workspace found");
 
       const { data, error } = await supabase
@@ -73,7 +76,7 @@ export function useCreateChatThread() {
         .insert({
           title,
           workspace_id: my.workspace_id,
-          created_by: user!.id,
+          created_by: user.id,
           is_main_thread: false,
         })
         .select()

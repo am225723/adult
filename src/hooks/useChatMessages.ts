@@ -28,7 +28,7 @@ export function useChatMessages(threadId: string | null) {
       if (error) throw error;
       return (data ?? []) as ChatMessage[];
     },
-    enabled: !!threadId,
+    enabled: !!threadId && !!user,
   });
 
   useEffect(() => {
@@ -46,7 +46,12 @@ export function useChatMessages(threadId: string | null) {
         (payload) => {
           queryClient.setQueryData<ChatMessage[]>(
             ["chat-messages", threadId],
-            (old) => [...(old ?? []), payload.new as ChatMessage],
+            (old) => {
+              const existing = old ?? [];
+              const incoming = payload.new as ChatMessage;
+              if (existing.some((m) => m.id === incoming.id)) return existing;
+              return [...existing, incoming];
+            },
           );
         },
       )
@@ -63,9 +68,10 @@ export function useSendChatMessage() {
 
   return useMutation({
     mutationFn: async ({ threadId, body }: { threadId: string; body: string }) => {
+      if (!user?.id) throw new Error("Must be signed in to send a message");
       const { data, error } = await supabase
         .from("admin_chat_messages")
-        .insert({ thread_id: threadId, sender_id: user!.id, body: body.trim() })
+        .insert({ thread_id: threadId, sender_id: user.id, body: body.trim() })
         .select()
         .single();
       if (error) throw error;

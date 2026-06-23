@@ -17,8 +17,9 @@ export function useWorkspaceMembers() {
         .from("admin_workspace_members")
         .select("workspace_id")
         .eq("user_id", user!.id)
+        .order("workspace_id", { ascending: true })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (myErr || !my) return [];
 
       const { data, error } = await supabase
@@ -42,8 +43,9 @@ export function useMyWorkspaceId() {
         .from("admin_workspace_members")
         .select("workspace_id")
         .eq("user_id", user!.id)
+        .order("workspace_id", { ascending: true })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (error) return null;
       return data?.workspace_id ?? null;
     },

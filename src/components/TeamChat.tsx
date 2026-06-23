@@ -102,7 +102,7 @@ function ThreadMessages({
   onClose: () => void;
 }) {
   const { user } = useAuth();
-  const { data: messages = [], isLoading } = useChatMessages(thread.id);
+  const { data: messages = [], isLoading, error: messagesError } = useChatMessages(thread.id);
   const sendMessage = useSendChatMessage();
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -121,7 +121,7 @@ function ThreadMessages({
       {
         onError: () => {
           toast({ variant: "destructive", title: "Failed to send message" });
-          setDraft(body);
+          setDraft((current) => (current.trim().length === 0 ? body : current));
         },
       },
     );
@@ -159,6 +159,11 @@ function ThreadMessages({
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <LoadingSpinner message="Loading messages…" />
+          </div>
+        ) : messagesError ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive">
+            <MessageSquare size={20} strokeWidth={1.25} />
+            <p className="text-sm">Failed to load messages.</p>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">

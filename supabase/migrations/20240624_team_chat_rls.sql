@@ -17,12 +17,14 @@ ALTER TABLE admin_message_read_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_chat_thread_members   ENABLE ROW LEVEL SECURITY;
 
 -- admin_chat_threads
+DROP POLICY IF EXISTS "workspace members can select threads" ON admin_chat_threads;
 CREATE POLICY "workspace members can select threads"
   ON admin_chat_threads FOR SELECT
   USING (workspace_id IN (
     SELECT workspace_id FROM admin_workspace_members WHERE user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "workspace members can insert threads" ON admin_chat_threads;
 CREATE POLICY "workspace members can insert threads"
   ON admin_chat_threads FOR INSERT
   WITH CHECK (
@@ -33,6 +35,7 @@ CREATE POLICY "workspace members can insert threads"
   );
 
 -- admin_chat_messages
+DROP POLICY IF EXISTS "workspace members can select messages" ON admin_chat_messages;
 CREATE POLICY "workspace members can select messages"
   ON admin_chat_messages FOR SELECT
   USING (
@@ -44,6 +47,7 @@ CREATE POLICY "workspace members can select messages"
     )
   );
 
+DROP POLICY IF EXISTS "workspace members can insert messages" ON admin_chat_messages;
 CREATE POLICY "workspace members can insert messages"
   ON admin_chat_messages FOR INSERT
   WITH CHECK (
@@ -57,12 +61,14 @@ CREATE POLICY "workspace members can insert messages"
   );
 
 -- admin_message_read_receipts
+DROP POLICY IF EXISTS "users manage own read receipts" ON admin_message_read_receipts;
 CREATE POLICY "users manage own read receipts"
   ON admin_message_read_receipts FOR ALL
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
 -- admin_chat_thread_members
+DROP POLICY IF EXISTS "workspace members can select thread members" ON admin_chat_thread_members;
 CREATE POLICY "workspace members can select thread members"
   ON admin_chat_thread_members FOR SELECT
   USING (
@@ -74,6 +80,7 @@ CREATE POLICY "workspace members can select thread members"
     )
   );
 
+DROP POLICY IF EXISTS "workspace members can join threads" ON admin_chat_thread_members;
 CREATE POLICY "workspace members can join threads"
   ON admin_chat_thread_members FOR INSERT
   WITH CHECK (
@@ -99,8 +106,22 @@ CREATE INDEX IF NOT EXISTS idx_chat_thread_members_thread
 CREATE INDEX IF NOT EXISTS idx_chat_thread_members_user
   ON admin_chat_thread_members (user_id);
 
--- Enable real-time
+-- Enable real-time (idempotent)
 ALTER TABLE admin_chat_messages REPLICA IDENTITY FULL;
 ALTER TABLE admin_chat_threads  REPLICA IDENTITY FULL;
-ALTER PUBLICATION supabase_realtime ADD TABLE admin_chat_messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE admin_chat_threads;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'admin_chat_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE admin_chat_messages;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'admin_chat_threads'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE admin_chat_threads;
+  END IF;
+END $$;
