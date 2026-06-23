@@ -1,4 +1,4 @@
-import { Mail, MessageSquare, Phone, CheckSquare } from "lucide-react";
+import { Mail, MessageSquare, Phone, CheckSquare, Database } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useWidgetData } from "@/hooks/useWidgetData";
 import { cn } from "@/lib/utils";
@@ -116,9 +116,10 @@ export function SuggestedFollowUps() {
         })}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        🤖 Smart suggestions coming soon with AI-powered follow-up recommendations.
-      </p>
+      <div className="flex items-center gap-1.5 pt-1">
+        <Database size={10} className="text-muted-foreground shrink-0" />
+        <p className="text-[10px] text-muted-foreground">Based on your live data · Actions require your confirmation</p>
+      </div>
     </div>
   );
 }
