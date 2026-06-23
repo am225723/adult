@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,7 @@ import {
   useUpsertNotificationPreference,
   NOTIFICATION_CATEGORIES,
 } from "@/hooks/useNotificationPreferences";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 function initials(name: string): string {
   return name
@@ -64,6 +65,7 @@ export function SettingsPage() {
 
   const { data: notifPrefs = [], isLoading: notifLoading } = useNotificationPreferences();
   const upsertPref = useUpsertNotificationPreference();
+  const push = usePushNotifications();
 
   const displayName =
     user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "User";
@@ -271,6 +273,44 @@ export function SettingsPage() {
                   aria-label="Quiet hours end"
                 />
               </div>
+            </SettingsRow>
+
+            {/* Browser push notifications */}
+            <SettingsRow>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Smartphone size={13} className="text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">Browser push notifications</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {!push.supported
+                    ? "Not supported in this browser or VAPID key not configured"
+                    : push.permission === "denied"
+                    ? "Blocked by browser — allow notifications in browser settings"
+                    : push.enabled
+                    ? "Receive notifications even when the app is closed"
+                    : "Get notified even when the app tab is closed"}
+                </p>
+              </div>
+              {push.supported && push.permission !== "denied" && (
+                <button
+                  role="switch"
+                  aria-checked={push.enabled}
+                  disabled={push.loading}
+                  onClick={() => (push.enabled ? push.disable() : push.enable())}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                    push.enabled ? "bg-primary" : "bg-muted",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-sm transition-transform",
+                      push.enabled ? "translate-x-4" : "translate-x-0",
+                    )}
+                  />
+                </button>
+              )}
             </SettingsRow>
           </>
         )}
