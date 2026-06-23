@@ -67,11 +67,24 @@ export function useSendChatMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ threadId, body }: { threadId: string; body: string }) => {
+    mutationFn: async ({
+      threadId,
+      body,
+      attachmentUrl,
+    }: {
+      threadId: string;
+      body: string;
+      attachmentUrl?: string | null;
+    }) => {
       if (!user?.id) throw new Error("Must be signed in to send a message");
       const { data, error } = await supabase
         .from("admin_chat_messages")
-        .insert({ thread_id: threadId, sender_id: user.id, body: body.trim() })
+        .insert({
+          thread_id: threadId,
+          sender_id: user.id,
+          body: body.trim() || null,
+          attachment_url: attachmentUrl ?? null,
+        })
         .select()
         .single();
       if (error) throw error;
