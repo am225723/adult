@@ -13,6 +13,9 @@ import {
   Monitor,
   LogOut,
   Search,
+  Building2,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
@@ -32,6 +35,8 @@ import { Navigate } from "react-router-dom";
 import { toast } from "@/hooks/useToast";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useMyAdminUser } from "@/hooks/useWorkspaceUsers";
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Today" },
@@ -48,6 +53,8 @@ export function AppLayout() {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
+  const { workspaces, selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspace();
+  const { data: myAdminUser } = useMyAdminUser();
 
   // Global Cmd/Ctrl+K shortcut — skip editable fields and key repeat
   useEffect(() => {
@@ -72,10 +79,21 @@ export function AppLayout() {
   if (!session) return <Navigate to="/login" replace />;
 
   const user = session.user;
-  const initials = (user.email ?? "?")
-    .split("@")[0]
-    .slice(0, 2)
-    .toUpperCase();
+
+  const displayName =
+    myAdminUser?.display_name ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split("@")[0] ||
+    "User";
+
+  const avatarUrl =
+    myAdminUser?.avatar_url ||
+    (user.user_metadata?.avatar_url as string | undefined);
+
+  const initials = displayName.slice(0, 2).toUpperCase();
+
+  const selectedWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
 
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut();
@@ -96,12 +114,49 @@ export function AppLayout() {
 
       {/* Sidebar (desktop only) */}
       <aside className="hidden md:flex w-14 flex-col items-center py-4 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
-        {/* App mark */}
-        <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center mb-3 shrink-0">
-          <span className="text-background text-xs font-bold leading-none">
-            A
-          </span>
-        </div>
+        {/* Workspace switcher / App mark */}
+        {workspaces.length > 1 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="w-9 h-9 rounded-lg bg-foreground flex items-center justify-center mb-3 shrink-0 hover:opacity-80 transition-opacity"
+                title={selectedWorkspace?.name ?? "Switch workspace"}
+              >
+                <span className="text-background text-xs font-bold leading-none">
+                  {selectedWorkspace?.name?.slice(0, 1).toUpperCase() ?? "A"}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start" className="w-52">
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                Workspaces
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {workspaces.map((ws) => (
+                <DropdownMenuItem
+                  key={ws.id}
+                  onClick={() => setSelectedWorkspaceId(ws.id)}
+                  className="flex items-center gap-2"
+                >
+                  <Building2 size={13} className="shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate">{ws.name}</span>
+                  {ws.id === selectedWorkspaceId && (
+                    <Check size={13} className="shrink-0 text-primary" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <div
+            className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center mb-3 shrink-0"
+            title={selectedWorkspace?.name}
+          >
+            <span className="text-background text-xs font-bold leading-none">
+              {selectedWorkspace?.name?.slice(0, 1).toUpperCase() ?? "A"}
+            </span>
+          </div>
+        )}
 
         {/* Search button */}
         <button
@@ -185,23 +240,32 @@ export function AppLayout() {
             <DropdownMenuTrigger asChild>
               <button className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-sidebar-accent transition-colors">
                 <Avatar className="w-6 h-6">
-                  <AvatarImage
-                    src={user.user_metadata?.avatar_url as string | undefined}
-                  />
-                  <AvatarFallback className="text-[10px]">
-                    {initials}
-                  </AvatarFallback>
+                  <AvatarImage src={avatarUrl} />
+                  <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
                 </Avatar>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="w-48">
+            <DropdownMenuContent side="right" align="end" className="w-52">
               <DropdownMenuLabel className="font-normal">
-                <p className="text-xs truncate text-muted-foreground">
-                  {user.email}
-                </p>
+                <p className="text-sm font-medium truncate">{displayName}</p>
+                <p className="text-xs truncate text-muted-foreground">{user.email}</p>
               </DropdownMenuLabel>
+              {selectedWorkspace && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="font-normal py-1">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Building2 size={11} />
+                      <span className="truncate">{selectedWorkspace.name}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                </>
+              )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="text-destructive focus:text-destructive"
+              >
                 <LogOut size={14} className="mr-2" /> Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -251,13 +315,32 @@ export function AppLayout() {
               <span className="text-[10px] font-medium">More</span>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="end" className="w-36 mb-1">
+          <DropdownMenuContent side="top" align="end" className="w-48 mb-1">
             <DropdownMenuLabel className="font-normal">
-              <p className="text-xs truncate text-muted-foreground">
-                {user.email}
-              </p>
+              <p className="text-sm font-medium truncate">{displayName}</p>
+              <p className="text-xs truncate text-muted-foreground">{user.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {workspaces.length > 1 && (
+              <>
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal py-1">
+                  Workspaces
+                </DropdownMenuLabel>
+                {workspaces.map((ws) => (
+                  <DropdownMenuItem
+                    key={ws.id}
+                    onClick={() => setSelectedWorkspaceId(ws.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <span className="flex-1 truncate text-sm">{ws.name}</span>
+                    {ws.id === selectedWorkspaceId && (
+                      <Check size={13} className="shrink-0 text-primary" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={() => setTheme("light")}>
               <Sun size={14} className="mr-2" /> Light
             </DropdownMenuItem>
@@ -268,7 +351,10 @@ export function AppLayout() {
               <Monitor size={14} className="mr-2" /> System
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              className="text-destructive focus:text-destructive"
+            >
               <LogOut size={14} className="mr-2" /> Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

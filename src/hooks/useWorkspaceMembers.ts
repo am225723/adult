@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 export interface WorkspaceMember {
   user_id: string;
@@ -9,27 +10,19 @@ export interface WorkspaceMember {
 }
 
 export function useWorkspaceMembers() {
-  const { user } = useAuth();
+  const { selectedWorkspaceId } = useWorkspace();
   return useQuery<WorkspaceMember[]>({
-    queryKey: ["workspace-members", user?.id],
+    queryKey: ["workspace-members", selectedWorkspaceId],
     queryFn: async () => {
-      const { data: my, error: myErr } = await supabase
-        .from("admin_workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user!.id)
-        .order("workspace_id", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (myErr || !my) return [];
-
+      if (!selectedWorkspaceId) return [];
       const { data, error } = await supabase
         .from("admin_workspace_members")
         .select("user_id, role, workspace_id")
-        .eq("workspace_id", my.workspace_id);
+        .eq("workspace_id", selectedWorkspaceId);
       if (error) throw error;
       return (data ?? []) as WorkspaceMember[];
     },
-    enabled: !!user,
+    enabled: !!selectedWorkspaceId,
     staleTime: 5 * 60 * 1000,
   });
 }
