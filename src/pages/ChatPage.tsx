@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MessageSquare, X, Plus, ExternalLink } from "lucide-react";
+import { MessageSquare, X, Plus, ExternalLink, Users } from "lucide-react";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { usePhoneMessages, type PhoneMessage } from "@/hooks/usePhoneMessages";
 import { useContacts } from "@/hooks/useContacts";
@@ -8,6 +8,7 @@ import { useContact } from "@/hooks/useContact";
 import { useCreateTask } from "@/hooks/useTasks";
 import { toast } from "@/hooks/useToast";
 import { cn } from "@/lib/utils";
+import { TeamChat } from "@/components/TeamChat";
 
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "unknown";
@@ -272,7 +273,10 @@ function ConversationDetail({
   );
 }
 
+type Tab = "sms" | "team";
+
 export function ChatPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("sms");
   const { data: messages = [], isLoading, error } = usePhoneMessages("all");
   const { data: contacts = [] } = useContacts();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
@@ -302,13 +306,78 @@ export function ChatPage() {
     ? conversations.find((c) => c.contactId === selectedContactId)
     : null;
 
-  if (isLoading) {
-    return <LoadingSpinner message="Loading messages…" />;
-  }
+  return (
+    <div className="flex flex-col h-screen">
+      {/* Tab bar */}
+      <div className="flex items-center gap-0 border-b border-border px-4 shrink-0">
+        <button
+          onClick={() => setActiveTab("sms")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 transition-colors -mb-px",
+            activeTab === "sms"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <MessageSquare size={14} />
+          SMS
+        </button>
+        <button
+          onClick={() => setActiveTab("team")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 transition-colors -mb-px",
+            activeTab === "team"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Users size={14} />
+          Team
+        </button>
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === "team" ? (
+          <TeamChat />
+        ) : (
+          <SmsTab
+            messages={messages}
+            isLoading={isLoading}
+            error={error}
+            conversations={conversations}
+            selectedContactId={selectedContactId}
+            setSelectedContactId={setSelectedContactId}
+            selectedConversation={selectedConversation}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SmsTab({
+  messages,
+  isLoading,
+  error,
+  conversations,
+  selectedContactId,
+  setSelectedContactId,
+  selectedConversation,
+}: {
+  messages: PhoneMessage[];
+  isLoading: boolean;
+  error: Error | null;
+  conversations: Conversation[];
+  selectedContactId: string | null;
+  setSelectedContactId: (id: string | null) => void;
+  selectedConversation: Conversation | null;
+}) {
+  if (isLoading) return <LoadingSpinner message="Loading messages…" />;
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-2 text-destructive">
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive">
         <MessageSquare size={24} strokeWidth={1.25} />
         <p className="text-sm">Failed to load SMS messages.</p>
       </div>
@@ -317,7 +386,7 @@ export function ChatPage() {
 
   if (messages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-2 text-muted-foreground">
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
         <MessageSquare size={24} strokeWidth={1.25} />
         <p className="text-sm">No SMS messages yet.</p>
       </div>
@@ -325,7 +394,7 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen">
+    <div className="flex flex-col md:flex-row h-full">
       {/* Conversation list */}
       <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-border flex flex-col min-w-0">
         <div className="px-4 py-4 border-b border-border">
