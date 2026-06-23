@@ -30,7 +30,7 @@ export interface Project {
   archived: boolean | null;
 }
 
-type TaskFilter = "today" | "upcoming" | "overdue" | "completed" | "all";
+type TaskFilter = "today" | "upcoming" | "overdue" | "completed" | "all" | "mine" | "unassigned";
 
 export function useTasks(filter: TaskFilter = "all", projectId?: string) {
   const { user } = useAuth();
@@ -66,6 +66,18 @@ export function useTasks(filter: TaskFilter = "all", projectId?: string) {
           break;
         case "completed":
           query = query.eq("status", "done").order("completed_at", { ascending: false, nullsFirst: false });
+          break;
+        case "mine":
+          query = query
+            .eq("assigned_to", user!.id)
+            .neq("status", "done")
+            .neq("status", "cancelled");
+          break;
+        case "unassigned":
+          query = query
+            .is("assigned_to", null)
+            .neq("status", "done")
+            .neq("status", "cancelled");
           break;
         default:
           query = query.neq("status", "done").neq("status", "cancelled");

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Plus,
@@ -13,6 +13,7 @@ import {
   FileText,
   Tag,
   X,
+  UserCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,15 +29,20 @@ import {
   type Task,
   type TaskPriority,
 } from "@/hooks/useTasks";
+import { useWorkspaceUsers, type WorkspaceUser } from "@/hooks/useWorkspaceUsers";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/useToast";
 
-type TaskTab = "today" | "upcoming" | "overdue" | "all" | "completed";
+type TaskTab = "today" | "upcoming" | "overdue" | "all" | "mine" | "unassigned" | "completed";
 
 const TABS: { key: TaskTab; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "upcoming", label: "Upcoming" },
   { key: "overdue", label: "Overdue" },
   { key: "all", label: "All" },
+  { key: "mine", label: "Mine" },
+  { key: "unassigned", label: "Unassigned" },
   { key: "completed", label: "Completed" },
 ];
 
@@ -164,6 +170,30 @@ function PriorityPicker({
   );
 }
 
+// ── Assignee avatar ────────────────────────────────────────────────────────────
+
+function AssigneeAvatar({ user }: { user: WorkspaceUser }) {
+  const initials = (user.display_name ?? user.email ?? "?")
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return (
+    <span
+      title={user.display_name ?? user.email ?? "Assigned"}
+      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-semibold shrink-0"
+    >
+      {user.avatar_url ? (
+        <img src={user.avatar_url} alt={initials} className="w-5 h-5 rounded-full object-cover" />
+      ) : (
+        initials
+      )}
+    </span>
+  );
+}
+
 // ── Task row ───────────────────────────────────────────────────────────────────
 
 function TaskRow({
@@ -171,11 +201,13 @@ function TaskRow({
   depth = 0,
   onSelect,
   selectedId,
+  userMap,
 }: {
   task: Task;
   depth?: number;
   onSelect: (task: Task) => void;
   selectedId?: string;
+  userMap: Map<string, WorkspaceUser>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [addingSub, setAddingSub] = useState(false);
@@ -304,6 +336,11 @@ function TaskRow({
             <FileText size={11} className="text-muted-foreground/60" />
           )}
 
+          {/* Assignee avatar */}
+          {task.assigned_to && userMap.has(task.assigned_to) && (
+            <AssigneeAvatar user={userMap.get(task.assigned_to)!} />
+          )}
+
           {/* Due date */}
           {dueDate && (
             <span
@@ -376,6 +413,7 @@ function TaskRow({
               depth={depth + 1}
               onSelect={onSelect}
               selectedId={selectedId}
+              userMap={userMap}
             />
           ))}
         </div>
@@ -389,10 +427,13 @@ function TaskRow({
 function TaskDetail({
   task,
   onClose,
+  userMap,
 }: {
   task: Task;
   onClose: () => void;
+  userMap: Map<string, WorkspaceUser>;
 }) {
+  const { user } = useAuth();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const { data: projects = [] } = useProjects();
@@ -405,6 +446,7 @@ function TaskDetail({
     task.due_date ? task.due_date.substring(0, 10) : "",
   );
   const [priority, setPriority] = useState<TaskPriority>(task.priority as TaskPriority);
+  const [assignedTo, setAssignedTo] = useState<string>(task.assigned_to ?? "");
 
   // Reset state when task changes
   useEffect(() => {
@@ -413,6 +455,7 @@ function TaskDetail({
     setTags(task.tags ?? []);
     setDueDate(task.due_date ? task.due_date.substring(0, 10) : "");
     setPriority(task.priority as TaskPriority);
+    setAssignedTo(task.assigned_to ?? "");
   }, [task.id]);
 
   const save = useCallback(
@@ -468,6 +511,30 @@ function TaskDetail({
     const next = tags.filter((t) => t !== tag);
     setTags(next);
     save({ tags: next });
+  }
+
+  async function handleAssigneeChange(newId: string) {
+    const prev = task.assigned_to;
+    const next = newId || null;
+    setAssignedTo(newId);
+    save({ assigned_to: next });
+
+    if (next && next !== prev && next !== user?.id) {
+      try {
+        await supabase.from("admin_notifications").insert({
+          workspace_id: task.workspace_id,
+          user_id: next,
+          type: "task_assigned",
+          title: "Task assigned to you",
+          body: task.title,
+          related_type: "task",
+          related_id: task.id,
+          is_read: false,
+        });
+      } catch {
+        // notification failure is non-critical
+      }
+    }
   }
 
   function handleDelete() {
@@ -625,6 +692,29 @@ function TaskDetail({
             </select>
           </div>
         )}
+
+        {/* Assignee */}
+        {userMap.size > 0 && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+              <UserCircle size={11} />
+              Assignee
+            </label>
+            <select
+              value={assignedTo}
+              onChange={(e) => handleAssigneeChange(e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+            >
+              <option value="">Unassigned</option>
+              {Array.from(userMap.values()).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.display_name ?? u.email ?? u.id}
+                  {u.id === user?.id ? " (me)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -746,12 +836,19 @@ export function TasksPage() {
   const [selectedProject, setSelectedProject] = useState<string | undefined>();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const { data: tasks = [], isLoading } = useTasks(tab, selectedProject);
+  const { data: workspaceUsers = [] } = useWorkspaceUsers();
   const createTask = useCreateTask();
+
+  const userMap = useMemo(
+    () => new Map(workspaceUsers.map((u) => [u.id, u])),
+    [workspaceUsers],
+  );
 
   // Parse initial tab from URL params
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["today", "upcoming", "overdue", "all", "completed"].includes(tabParam)) {
+    const validTabs: TaskTab[] = ["today", "upcoming", "overdue", "all", "mine", "unassigned", "completed"];
+    if (tabParam && validTabs.includes(tabParam as TaskTab)) {
       setTab(tabParam as TaskTab);
     }
   }, []);
@@ -837,6 +934,7 @@ export function TasksPage() {
                   task={task}
                   onSelect={handleSelectTask}
                   selectedId={selectedTask?.id}
+                  userMap={userMap}
                 />
               ))}
             </div>
@@ -850,6 +948,7 @@ export function TasksPage() {
           <TaskDetail
             task={selectedTask}
             onClose={() => setSelectedTask(null)}
+            userMap={userMap}
           />
         </div>
       )}
@@ -860,6 +959,7 @@ export function TasksPage() {
           <TaskDetail
             task={selectedTask}
             onClose={() => setSelectedTask(null)}
+            userMap={userMap}
           />
         </div>
       )}
@@ -873,6 +973,8 @@ function EmptyState({ tab }: { tab: TaskTab }) {
     upcoming: { title: "No upcoming tasks", sub: "You're all caught up!" },
     overdue: { title: "No overdue tasks", sub: "Great work keeping on top of things." },
     all: { title: "No tasks yet", sub: "Add your first task above." },
+    mine: { title: "No tasks assigned to you", sub: "Tasks assigned to you will appear here." },
+    unassigned: { title: "No unassigned tasks", sub: "All tasks have been assigned." },
     completed: { title: "No completed tasks yet", sub: "Complete tasks to see them here." },
   };
   const { title, sub } = messages[tab];
