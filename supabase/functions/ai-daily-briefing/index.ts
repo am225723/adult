@@ -4,7 +4,6 @@ import { corsHeaders } from "../_shared/cors.ts";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 interface BriefingContext {
   date: string;
@@ -94,32 +93,46 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
-      messages: [{ role: "user", content: buildPrompt(ctx) }],
-    }),
-  });
+  let result: unknown;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 200,
+        messages: [{ role: "user", content: buildPrompt(ctx) }],
+      }),
+    }).finally(() => clearTimeout(timeout));
 
-  if (!anthropicRes.ok) {
-    console.error("Anthropic API error:", anthropicRes.status, await anthropicRes.text());
+    if (!anthropicRes.ok) {
+      console.error("Anthropic API error:", anthropicRes.status, await anthropicRes.text());
+      return new Response(JSON.stringify({ error: "AI service unavailable" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    result = await anthropicRes.json();
+  } catch (e) {
+    console.error("Anthropic request failed:", e);
     return new Response(JSON.stringify({ error: "AI service unavailable" }), {
       status: 503,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const result = await anthropicRes.json();
-  const briefing = (result.content?.[0]?.text ?? "").trim();
+  const briefing = ((result as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? "").trim();
 
-  const sources: string[] = ["Calendar", "Tasks"];
+  const sources: string[] = [];
+  if (ctx.eventsToday > 0) sources.push("Calendar");
+  if (ctx.tasksDueToday > 0 || ctx.tasksOverdue > 0) sources.push("Tasks");
   if (ctx.unreadEmails > 0) sources.push("Email");
   if (ctx.missedCalls > 0) sources.push("Phone");
   if (ctx.unreadMessages > 0) sources.push("Messages");
