@@ -8,10 +8,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useChatThreads, useCreateChatThread, type ChatThread } from "@/hooks/useChatThreads";
 import { useChatMessages, useSendChatMessage } from "@/hooks/useChatMessages";
+import { useWorkspaceUsers, type WorkspaceUser } from "@/hooks/useWorkspaceUsers";
 import { toast } from "@/hooks/useToast";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
@@ -27,6 +29,13 @@ function relativeTime(iso: string | null | undefined): string {
   if (hours < 24) return `${hours}h`;
   if (days < 7) return `${days}d`;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function initials(name: string | null | undefined): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
 function ThreadRow({
@@ -63,32 +72,49 @@ function MessageBubble({
   body,
   createdAt,
   isMine,
+  sender,
 }: {
   body: string;
   createdAt: string | null;
   isMine: boolean;
+  sender: WorkspaceUser | null;
 }) {
+  const senderName = sender?.display_name || sender?.email?.split("@")[0] || "Member";
+  const senderInitials = initials(senderName);
+  const avatarUrl = sender?.avatar_url ?? undefined;
+
   return (
-    <div className={cn("flex gap-2", isMine ? "flex-row-reverse" : "flex-row")}>
-      <div
-        className={cn(
-          "max-w-xs md:max-w-sm rounded-xl px-3 py-2",
-          isMine
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground",
+    <div className={cn("flex gap-2 items-end", isMine ? "flex-row-reverse" : "flex-row")}>
+      {!isMine && (
+        <Avatar className="w-6 h-6 shrink-0 mb-0.5">
+          <AvatarImage src={avatarUrl} />
+          <AvatarFallback className="text-[9px]">{senderInitials}</AvatarFallback>
+        </Avatar>
+      )}
+      <div className="flex flex-col gap-0.5 max-w-xs md:max-w-sm">
+        {!isMine && (
+          <p className="text-[11px] text-muted-foreground px-1">{senderName}</p>
         )}
-      >
-        <p className="text-sm break-words whitespace-pre-wrap">{body}</p>
-        {createdAt && (
-          <p
-            className={cn(
-              "text-[10px] mt-1",
-              isMine ? "text-primary-foreground/70 text-right" : "text-muted-foreground",
-            )}
-          >
-            {relativeTime(createdAt)}
-          </p>
-        )}
+        <div
+          className={cn(
+            "rounded-xl px-3 py-2",
+            isMine
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-foreground",
+          )}
+        >
+          <p className="text-sm break-words whitespace-pre-wrap">{body}</p>
+          {createdAt && (
+            <p
+              className={cn(
+                "text-[10px] mt-1",
+                isMine ? "text-primary-foreground/70 text-right" : "text-muted-foreground",
+              )}
+            >
+              {relativeTime(createdAt)}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -97,9 +123,11 @@ function MessageBubble({
 function ThreadMessages({
   thread,
   onClose,
+  userMap,
 }: {
   thread: ChatThread;
   onClose: () => void;
+  userMap: Map<string, WorkspaceUser>;
 }) {
   const { user } = useAuth();
   const { data: messages = [], isLoading, error: messagesError } = useChatMessages(thread.id);
@@ -155,7 +183,7 @@ function ThreadMessages({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-auto p-4 space-y-2">
+      <div className="flex-1 overflow-auto p-4 space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <LoadingSpinner message="Loading messages…" />
@@ -177,6 +205,7 @@ function ThreadMessages({
               body={msg.body ?? ""}
               createdAt={msg.created_at}
               isMine={msg.sender_id === user?.id}
+              sender={msg.sender_id ? (userMap.get(msg.sender_id) ?? null) : null}
             />
           ))
         )}
@@ -273,8 +302,13 @@ function NewThreadDialog({
 export function TeamChat() {
   const { data: threads = [], isLoading, error } = useChatThreads();
   const createThread = useCreateChatThread();
+  const { data: workspaceUsers = [] } = useWorkspaceUsers();
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const userMap = new Map<string, WorkspaceUser>(
+    workspaceUsers.map((u) => [u.id, u]),
+  );
 
   const selectedThread = threads.find((t) => t.id === selectedThreadId) ?? null;
 
@@ -317,6 +351,7 @@ export function TeamChat() {
               <h2 className="text-sm font-semibold">Team Chat</h2>
               <p className="text-xs text-muted-foreground">
                 {threads.length} thread{threads.length !== 1 ? "s" : ""}
+                {workspaceUsers.length > 0 && ` · ${workspaceUsers.length} member${workspaceUsers.length !== 1 ? "s" : ""}`}
               </p>
             </div>
             <Button
@@ -367,6 +402,7 @@ export function TeamChat() {
             <ThreadMessages
               thread={selectedThread}
               onClose={() => setSelectedThreadId(null)}
+              userMap={userMap}
             />
           </div>
         ) : (
@@ -382,6 +418,7 @@ export function TeamChat() {
             <ThreadMessages
               thread={selectedThread}
               onClose={() => setSelectedThreadId(null)}
+              userMap={userMap}
             />
           </div>
         )}

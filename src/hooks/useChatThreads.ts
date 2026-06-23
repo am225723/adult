@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 export interface ChatThread {
   id: string;
@@ -14,68 +15,57 @@ export interface ChatThread {
 
 export function useChatThreads() {
   const { user } = useAuth();
+  const { selectedWorkspaceId } = useWorkspace();
   const queryClient = useQueryClient();
 
   const query = useQuery<ChatThread[]>({
-    queryKey: ["chat-threads", user?.id],
+    queryKey: ["chat-threads", selectedWorkspaceId],
     queryFn: async () => {
-      const { data: my, error: myErr } = await supabase
-        .from("admin_workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user!.id)
-        .order("workspace_id", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (myErr || !my) return [];
-
       const { data, error } = await supabase
         .from("admin_chat_threads")
         .select("*")
-        .eq("workspace_id", my.workspace_id)
+        .eq("workspace_id", selectedWorkspaceId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as ChatThread[];
     },
-    enabled: !!user,
+    enabled: !!user && !!selectedWorkspaceId,
   });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !selectedWorkspaceId) return;
     const channel = supabase
-      .channel("chat-threads-rt")
+      .channel(`chat-threads-rt-${selectedWorkspaceId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "admin_chat_threads" },
-        () => queryClient.invalidateQueries({ queryKey: ["chat-threads", user.id] }),
+        () =>
+          queryClient.invalidateQueries({
+            queryKey: ["chat-threads", selectedWorkspaceId],
+          }),
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user, queryClient]);
+  }, [user, selectedWorkspaceId, queryClient]);
 
   return query;
 }
 
 export function useCreateChatThread() {
   const { user } = useAuth();
+  const { selectedWorkspaceId } = useWorkspace();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (title: string) => {
       if (!user?.id) throw new Error("Must be signed in to create a thread");
-      const { data: my, error: myErr } = await supabase
-        .from("admin_workspace_members")
-        .select("workspace_id")
-        .eq("user_id", user.id)
-        .order("workspace_id", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (myErr || !my) throw new Error("No workspace found");
+      if (!selectedWorkspaceId) throw new Error("No workspace selected");
 
       const { data, error } = await supabase
         .from("admin_chat_threads")
         .insert({
           title,
-          workspace_id: my.workspace_id,
+          workspace_id: selectedWorkspaceId,
           created_by: user.id,
           is_main_thread: false,
         })
@@ -85,7 +75,9 @@ export function useCreateChatThread() {
       return data as ChatThread;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chat-threads", user?.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["chat-threads", selectedWorkspaceId],
+      });
     },
   });
 }
