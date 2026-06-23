@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,6 +7,11 @@ import { useTheme } from "@/components/theme-provider";
 import { useCalendarAccount } from "@/hooks/useCalendarAccount";
 import { useGmailAccount } from "@/hooks/useGmailAccount";
 import { supabase } from "@/lib/supabase";
+import {
+  useNotificationPreferences,
+  useUpsertNotificationPreference,
+  NOTIFICATION_CATEGORIES,
+} from "@/hooks/useNotificationPreferences";
 
 function initials(name: string): string {
   return name
@@ -57,9 +62,22 @@ export function SettingsPage() {
     isError: gmailError,
   } = useGmailAccount();
 
+  const { data: notifPrefs = [], isLoading: notifLoading } = useNotificationPreferences();
+  const upsertPref = useUpsertNotificationPreference();
+
   const displayName =
     user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "User";
   const email = user?.email ?? "";
+
+  function isPrefEnabled(category: string): boolean {
+    const pref = notifPrefs.find((p) => p.category === category);
+    return pref ? (pref.enabled ?? true) : true;
+  }
+
+  function quietHours(field: "quiet_hours_start" | "quiet_hours_end"): string {
+    const pref = notifPrefs.find((p) => p.category === "global");
+    return pref?.[field] ?? "";
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -178,6 +196,84 @@ export function SettingsPage() {
             ))}
           </div>
         </SettingsRow>
+      </SettingsSection>
+
+      {/* Notifications */}
+      <SettingsSection title="Notifications">
+        {notifLoading ? (
+          <SettingsRow>
+            <p className="text-sm text-muted-foreground">Loading preferences…</p>
+          </SettingsRow>
+        ) : (
+          <>
+            {NOTIFICATION_CATEGORIES.map(({ id, label }) => {
+              const enabled = isPrefEnabled(id);
+              return (
+                <SettingsRow key={id}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{label}</p>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={enabled}
+                    onClick={() =>
+                      upsertPref.mutate({ category: id, enabled: !enabled })
+                    }
+                    className={cn(
+                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      enabled ? "bg-primary" : "bg-muted",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-sm transition-transform",
+                        enabled ? "translate-x-4" : "translate-x-0",
+                      )}
+                    />
+                  </button>
+                </SettingsRow>
+              );
+            })}
+
+            {/* Quiet hours (global) */}
+            <SettingsRow>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Bell size={13} className="text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">Quiet hours</p>
+                </div>
+                <p className="text-xs text-muted-foreground">Suppress notifications during this window</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={quietHours("quiet_hours_start")}
+                  onChange={(e) =>
+                    upsertPref.mutate({
+                      category: "global",
+                      quiet_hours_start: e.target.value || null,
+                    })
+                  }
+                  className="text-xs bg-muted border border-border rounded px-2 py-1 text-foreground"
+                  aria-label="Quiet hours start"
+                />
+                <span className="text-xs text-muted-foreground">–</span>
+                <input
+                  type="time"
+                  value={quietHours("quiet_hours_end")}
+                  onChange={(e) =>
+                    upsertPref.mutate({
+                      category: "global",
+                      quiet_hours_end: e.target.value || null,
+                    })
+                  }
+                  className="text-xs bg-muted border border-border rounded px-2 py-1 text-foreground"
+                  aria-label="Quiet hours end"
+                />
+              </div>
+            </SettingsRow>
+          </>
+        )}
       </SettingsSection>
 
       {/* Account */}
