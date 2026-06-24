@@ -79,8 +79,10 @@ function tagColor(tag: string): string {
 
 function QuickCapture({
   onAdd,
+  onOpenNew,
 }: {
   onAdd: (title: string) => void;
+  onOpenNew: () => void;
 }) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -109,12 +111,233 @@ function QuickCapture({
         placeholder="Add a task…"
         className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
-      {value.trim() && (
+      {value.trim() ? (
         <Button type="submit" size="sm" variant="ghost" className="h-6 px-2 text-xs">
           Add
         </Button>
+      ) : (
+        <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs shrink-0" onClick={onOpenNew}>
+          Full details
+        </Button>
       )}
     </form>
+  );
+}
+
+// ── New Task Panel ─────────────────────────────────────────────────────────────
+
+function NewTaskPanel({
+  defaultProject,
+  onClose,
+  onCreated,
+}: {
+  defaultProject?: string;
+  onClose: () => void;
+  onCreated: (task: Task) => void;
+}) {
+  const { user } = useAuth();
+  const createTask = useCreateTask();
+  const { data: projects = [] } = useProjects();
+  const { data: workspaceUsers = [] } = useWorkspaceUsers();
+
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("none");
+  const [projectId, setProjectId] = useState(defaultProject ?? "");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [dirty, setDirty] = useState(false);
+
+  const userMap = useMemo(
+    () => new Map(workspaceUsers.map((u) => [u.id, u])),
+    [workspaceUsers],
+  );
+
+  function addTag() {
+    const t = tagInput.trim().toLowerCase();
+    if (!t || tags.includes(t)) { setTagInput(""); return; }
+    setTags((prev) => [...prev, t]);
+    setTagInput("");
+    setDirty(true);
+  }
+
+  function removeTag(tag: string) {
+    setTags((prev) => prev.filter((t) => t !== tag));
+    setDirty(true);
+  }
+
+  function handleClose() {
+    if (dirty && !confirm("Discard unsaved task?")) return;
+    onClose();
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    try {
+      const task = await createTask.mutateAsync({
+        title: trimmed,
+        notes: notes || undefined,
+        due_date: dueDate ? new Date(dueDate + "T23:59:59").toISOString() : undefined,
+        priority,
+        project_id: projectId || undefined,
+        assigned_to: assignedTo || undefined,
+        tags: tags.length ? tags : undefined,
+      });
+      onCreated(task);
+      toast({ title: "Task created" });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to create task" });
+    }
+  }
+
+  return (
+    <div className="w-80 md:w-96 shrink-0 md:border-l border-t md:border-t-0 border-border flex flex-col h-full bg-card">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">New task</span>
+        <button className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted" onClick={handleClose}>
+          <X size={14} />
+        </button>
+      </div>
+
+      <form onSubmit={handleSave} className="flex-1 overflow-auto p-4 space-y-5">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Title *</label>
+          <textarea
+            autoFocus
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); setDirty(true); }}
+            rows={2}
+            placeholder="Task title…"
+            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <FileText size={11} />
+            Notes
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => { setNotes(e.target.value); setDirty(true); }}
+            rows={4}
+            placeholder="Add notes…"
+            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <Tag size={11} />
+            Tags
+          </label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {tags.map((tag) => (
+              <span key={tag} className={cn("text-[11px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1", tagColor(tag))}>
+                {tag}
+                <button type="button" className="opacity-60 hover:opacity-100" onClick={() => removeTag(tag)}>
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } }}
+            onBlur={addTag}
+            placeholder="Add tag, press Enter…"
+            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <Calendar size={11} />
+            Due date
+          </label>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => { setDueDate(e.target.value); setDirty(true); }}
+            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <Flag size={11} />
+            Priority
+          </label>
+          <div className="flex gap-1.5 flex-wrap">
+            {(["high", "medium", "low", "none"] as TaskPriority[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => { setPriority(p); setDirty(true); }}
+                className={cn(
+                  "px-3 py-1 text-xs rounded-full border transition-colors",
+                  priority === p ? cn("border-transparent", PRIORITY_COLORS[p], "bg-muted") : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {PRIORITY_LABELS[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {projects.length > 0 && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Project</label>
+            <select
+              value={projectId}
+              onChange={(e) => { setProjectId(e.target.value); setDirty(true); }}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+            >
+              <option value="">No project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {userMap.size > 0 && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+              <UserCircle size={11} />
+              Assignee
+            </label>
+            <select
+              value={assignedTo}
+              onChange={(e) => { setAssignedTo(e.target.value); setDirty(true); }}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+            >
+              <option value="">Unassigned</option>
+              {Array.from(userMap.values()).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.display_name ?? u.email ?? u.id}
+                  {u.id === user?.id ? " (me)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <Button type="submit" size="sm" disabled={!title.trim() || createTask.isPending} className="flex-1">
+            {createTask.isPending ? "Creating…" : "Create task"}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -843,6 +1066,7 @@ export function TasksPage() {
   const [tab, setTab] = useState<TaskTab>("today");
   const [selectedProject, setSelectedProject] = useState<string | undefined>();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
   const { data: tasks = [], isLoading } = useTasks(tab, selectedProject);
   const { data: workspaceUsers = [] } = useWorkspaceUsers();
   const createTask = useCreateTask();
@@ -888,7 +1112,22 @@ export function TasksPage() {
 
   function handleSelectTask(task: Task) {
     setSelectedTask((prev) => (prev?.id === task.id ? null : task));
+    setNewTaskOpen(false);
   }
+
+  const rightPanel = newTaskOpen ? (
+    <NewTaskPanel
+      defaultProject={selectedProject}
+      onClose={() => setNewTaskOpen(false)}
+      onCreated={(task) => { setNewTaskOpen(false); setSelectedTask(task); }}
+    />
+  ) : selectedTask ? (
+    <TaskDetail
+      task={selectedTask}
+      onClose={() => setSelectedTask(null)}
+      userMap={userMap}
+    />
+  ) : null;
 
   return (
     <div className="flex flex-col md:flex-row h-screen">
@@ -924,7 +1163,7 @@ export function TasksPage() {
 
         {/* Quick capture */}
         {tab !== "completed" && (
-          <QuickCapture onAdd={handleAdd} />
+          <QuickCapture onAdd={handleAdd} onOpenNew={() => { setNewTaskOpen(true); setSelectedTask(null); }} />
         )}
 
         {/* Task list */}
@@ -951,25 +1190,17 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Detail panel (desktop) or modal (mobile) */}
-      {selectedTask && (
+      {/* Detail panel (desktop) */}
+      {rightPanel && (
         <div className="hidden md:flex">
-          <TaskDetail
-            task={selectedTask}
-            onClose={() => setSelectedTask(null)}
-            userMap={userMap}
-          />
+          {rightPanel}
         </div>
       )}
 
       {/* Mobile detail modal overlay */}
-      {selectedTask && (
+      {(selectedTask || newTaskOpen) && (
         <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex flex-col animate-in fade-in slide-in-from-bottom">
-          <TaskDetail
-            task={selectedTask}
-            onClose={() => setSelectedTask(null)}
-            userMap={userMap}
-          />
+          {rightPanel}
         </div>
       )}
     </div>

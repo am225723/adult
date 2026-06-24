@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { Mail, RefreshCw, X, Flag, CheckCircle2, Plus, Reply, PenLine } from "lucide-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import DOMPurify from "dompurify";
+import { Mail, RefreshCw, X, Flag, CheckCircle2, Plus, Reply, PenLine, UserPlus, Star, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +20,57 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGmailAccount } from "@/hooks/useGmailAccount";
 import { useEmails, type EmailFilter, type Email } from "@/hooks/useEmails";
 import { useCreateTask } from "@/hooks/useTasks";
+import { useCreateContact } from "@/hooks/useContacts";
+import type { Contact } from "@/hooks/useContacts";
+import { useMyWorkspaceMemberProfile } from "@/hooks/useWorkspaceUsers";
 import { toast } from "@/hooks/useToast";
 import { supabase } from "@/lib/supabase";
+
+function useContactsByEmails(emails: string[]) {
+  const { user } = useAuth();
+  const key = emails.slice().sort().join(",");
+  return useQuery<Map<string, Contact>>({
+    queryKey: ["contacts", "batch", key],
+    queryFn: async () => {
+      if (!emails.length) return new Map();
+      const { data, error } = await supabase
+        .from("admin_contacts")
+        .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
+        .in("primary_email", emails);
+      if (error) throw error;
+      const map = new Map<string, Contact>();
+      for (const c of data ?? []) {
+        if (c.primary_email) map.set(c.primary_email.toLowerCase(), c as Contact);
+      }
+      return map;
+    },
+    enabled: !!user && emails.length > 0,
+    staleTime: 60_000,
+  });
+}
+
+function parseSenderName(from: string | null): string {
+  if (!from) return "Unknown sender";
+  const match = from.match(/^"?([^"<]+)"?\s*</);
+  if (match) return match[1].trim();
+  return from;
+}
+
+function parseSenderEmail(from: string | null): string | null {
+  if (!from) return null;
+  const match = from.match(/<([^>]+)>/);
+  if (match) return match[1];
+  if (from.includes("@")) return from;
+  return null;
+}
+
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+}
+
+function isHtml(content: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(content);
+}
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const FN_BASE = `${SUPABASE_URL}/functions/v1`;
@@ -35,10 +85,19 @@ function ComposeDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const { session } = useAuth();
+  const { data: memberProfile } = useMyWorkspaceMemberProfile();
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+
+  const signature = memberProfile?.email_signature ?? null;
+
+  useEffect(() => {
+    if (open && signature) {
+      setBody((prev) => prev || `\n\n-- \n${signature}`);
+    }
+  }, [open, signature]);
 
   function reset() {
     setTo("");
@@ -135,16 +194,22 @@ function ReplyDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const { session } = useAuth();
+  const { data: memberProfile } = useMyWorkspaceMemberProfile();
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
 
+  const signature = memberProfile?.email_signature ?? null;
+
   useEffect(() => {
-    if (open) setBody("");
-  }, [open]);
+    if (open) {
+      setBody((prev) => prev || (signature ? `\n\n-- \n${signature}` : ""));
+    }
+  }, [open, signature]);
 
   if (!email) return null;
 
-  const replyTo = email.from_address ?? "";
+  const senderEmail = parseSenderEmail(email.from_addr ?? email.from_address);
+  const replyTo = senderEmail ?? email.from_addr ?? email.from_address ?? "";
   const replySubject = email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject ?? ""}`;
 
   async function handleSend(e: React.FormEvent) {
@@ -163,7 +228,7 @@ function ReplyDialog({
           to: replyTo,
           subject: replySubject,
           body,
-          gmail_message_id: email.gmail_message_id,
+          gmail_message_id: email.gmail_message_id ?? email.external_message_id,
         }),
       });
       const data = await res.json();
@@ -239,32 +304,36 @@ function ConnectPrompt({ onConnect }: { onConnect: () => void }) {
   );
 }
 
+function formatRelativeDate(date: string | null | undefined): string {
+  if (!date) return "—";
+  const d = new Date(date);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return "now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function EmailRow({
   email,
   onSelect,
   selectedId,
+  contact,
 }: {
   email: Email;
   onSelect: (email: Email) => void;
   selectedId?: string;
+  contact?: Contact | null;
 }) {
-  const dateFormatter = (date: string | null | undefined) => {
-    if (!date) return "—";
-    const d = new Date(date);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
+  const rawFrom = email.from_addr ?? email.from_address;
+  const senderDisplay = contact?.display_name ?? parseSenderName(rawFrom);
   const isSelected = selectedId === email.id;
+  const isStarred = email.is_starred || email.is_flagged;
 
   return (
     <div
@@ -278,10 +347,10 @@ function EmailRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className={cn("text-sm truncate", email.is_read === false && "font-semibold")}>
-            {email.from_address || "Unknown sender"}
+            {senderDisplay}
           </p>
-          {email.is_flagged && (
-            <Flag size={12} className="text-amber-500 shrink-0" />
+          {isStarred && (
+            <Star size={12} className="text-amber-500 shrink-0 fill-amber-500" />
           )}
         </div>
         <p className={cn("text-sm truncate", email.is_read === false ? "text-foreground font-medium" : "text-muted-foreground")}>
@@ -290,7 +359,7 @@ function EmailRow({
         <p className="text-xs text-muted-foreground truncate">{email.snippet || ""}</p>
       </div>
       <div className="text-xs text-muted-foreground shrink-0">
-        {dateFormatter(email.received_at)}
+        {formatRelativeDate(email.received_at)}
       </div>
     </div>
   );
@@ -300,14 +369,43 @@ function EmailDetail({
   email,
   onClose,
   onReply,
+  senderContact,
 }: {
   email: Email;
   onClose: () => void;
   onReply: (email: Email) => void;
+  senderContact?: Contact | null;
 }) {
   const createTask = useCreateTask();
+  const createContact = useCreateContact();
   const [creatingTask, setCreatingTask] = useState(false);
+  const [showImages, setShowImages] = useState(false);
+  const [quotedExpanded, setQuotedExpanded] = useState(false);
   const queryClient = useQueryClient();
+
+  const rawFrom = email.from_addr ?? email.from_address;
+  const senderEmail = parseSenderEmail(rawFrom);
+  const senderName = parseSenderName(rawFrom);
+
+  const rawBody = email.body || email.snippet || "";
+  const bodyIsHtml = isHtml(rawBody);
+
+  const processedBody = useCallback(() => {
+    if (!bodyIsHtml) return rawBody;
+    let html = sanitizeHtml(rawBody);
+    if (!showImages) {
+      html = html.replace(/<img[^>]*>/gi, '<span class="inline-block bg-muted text-muted-foreground text-[10px] px-1 py-0.5 rounded">[image]</span>');
+    }
+    return html;
+  }, [rawBody, bodyIsHtml, showImages]);
+
+  const quotedPattern = /(On .+wrote:|_{10,}|From:.*\nSent:)/s;
+  const [mainBody, quotedBody] = (() => {
+    if (bodyIsHtml) return [rawBody, null];
+    const match = rawBody.match(quotedPattern);
+    if (!match || match.index === undefined) return [rawBody, null];
+    return [rawBody.slice(0, match.index).trim(), rawBody.slice(match.index).trim()];
+  })();
 
   async function handleMarkRead(isRead: boolean) {
     try {
@@ -317,9 +415,7 @@ function EmailDetail({
         .eq("id", email.id);
       if (error) throw error;
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
-      toast({
-        title: isRead ? "Marked as read" : "Marked as unread",
-      });
+      toast({ title: isRead ? "Marked as read" : "Marked as unread" });
     } catch {
       toast({ variant: "destructive", title: "Failed to update email" });
     }
@@ -333,9 +429,7 @@ function EmailDetail({
         .eq("id", email.id);
       if (error) throw error;
       await queryClient.invalidateQueries({ queryKey: ["emails"] });
-      toast({
-        title: email.is_flagged ? "Unflagged" : "Flagged",
-      });
+      toast({ title: email.is_flagged ? "Unflagged" : "Flagged" });
     } catch {
       toast({ variant: "destructive", title: "Failed to update email" });
     }
@@ -347,7 +441,7 @@ function EmailDetail({
     createTask.mutate(
       {
         title: email.subject,
-        notes: `From: ${email.from_address}\n\n${email.snippet || ""}`,
+        notes: `From: ${rawFrom ?? "Unknown"}\n\n${email.snippet || ""}`,
         tags: ["email"],
       },
       {
@@ -363,6 +457,17 @@ function EmailDetail({
     );
   }
 
+  function handleAddContact() {
+    if (!senderEmail) return;
+    createContact.mutate(
+      { display_name: senderName !== senderEmail ? senderName : senderEmail, primary_email: senderEmail },
+      {
+        onSuccess: () => toast({ title: "Contact added", description: senderEmail }),
+        onError: () => toast({ variant: "destructive", title: "Failed to add contact" }),
+      },
+    );
+  }
+
   const displayDate = email.received_at
     ? new Date(email.received_at).toLocaleDateString("en-US", {
         weekday: "long",
@@ -372,6 +477,8 @@ function EmailDetail({
         minute: "2-digit",
       })
     : "Unknown date";
+
+  const toDisplay = email.to_addr ?? (email.to_addresses?.join(", ") ?? null);
 
   return (
     <div className="w-96 shrink-0 md:border-l border-t md:border-t-0 border-border flex flex-col h-full bg-card">
@@ -393,16 +500,36 @@ function EmailDetail({
         {/* From */}
         <div>
           <p className="text-xs font-medium text-muted-foreground mb-1">From</p>
-          <p className="text-sm text-foreground">{email.from_address || "Unknown"}</p>
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              {senderContact ? (
+                <p className="text-sm font-medium text-foreground">{senderContact.display_name}</p>
+              ) : (
+                <p className="text-sm text-foreground">{senderName}</p>
+              )}
+              {senderEmail && senderEmail !== senderName && (
+                <p className="text-xs text-muted-foreground">{senderEmail}</p>
+              )}
+            </div>
+            {senderEmail && !senderContact && (
+              <button
+                onClick={handleAddContact}
+                disabled={createContact.isPending}
+                className="shrink-0 flex items-center gap-1 text-[11px] text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-colors"
+                title="Add to contacts"
+              >
+                <UserPlus size={11} />
+                Add contact
+              </button>
+            )}
+          </div>
         </div>
 
         {/* To */}
-        {email.to_addresses && email.to_addresses.length > 0 && (
+        {toDisplay && (
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">To</p>
-            <p className="text-sm text-foreground">
-              {email.to_addresses.join(", ")}
-            </p>
+            <p className="text-sm text-foreground">{toDisplay}</p>
           </div>
         )}
 
@@ -422,11 +549,48 @@ function EmailDetail({
 
         {/* Content */}
         <div className="pt-2 border-t border-border">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Message</p>
-          <div className="bg-muted/50 rounded-lg p-3">
-            <p className="text-sm text-foreground whitespace-pre-wrap">
-              {email.snippet || "(no content)"}
-            </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-muted-foreground">Message</p>
+            {bodyIsHtml && (
+              <button
+                onClick={() => setShowImages((v) => !v)}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                title={showImages ? "Hide images" : "Show images"}
+              >
+                <ShieldAlert size={11} />
+                {showImages ? "Hide images" : "Show images"}
+              </button>
+            )}
+          </div>
+          <div className="bg-muted/50 rounded-lg p-3 overflow-x-auto">
+            {bodyIsHtml ? (
+              <div
+                className="text-sm text-foreground email-body"
+                dangerouslySetInnerHTML={{ __html: processedBody() }}
+                style={{ wordBreak: "break-word" }}
+              />
+            ) : (
+              <>
+                <p className="text-sm text-foreground whitespace-pre-wrap">
+                  {mainBody || "(no content)"}
+                </p>
+                {quotedBody && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => setQuotedExpanded((v) => !v)}
+                      className="text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      {quotedExpanded ? "Hide quoted text" : "Show quoted text"}
+                    </button>
+                    {quotedExpanded && (
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-1 border-l-2 border-border pl-2">
+                        {quotedBody}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -485,6 +649,16 @@ export function MailPage() {
     isLoading: emailsLoading,
     refetch: refetchEmails,
   } = useEmails(filter);
+
+  const senderEmails = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of emails) {
+      const addr = parseSenderEmail(e.from_addr ?? e.from_address);
+      if (addr) set.add(addr.toLowerCase());
+    }
+    return Array.from(set);
+  }, [emails]);
+  const { data: contactMap = new Map() } = useContactsByEmails(senderEmails);
 
   // Parse initial filter from URL params
   useEffect(() => {
@@ -642,16 +816,21 @@ export function MailPage() {
             </div>
           ) : (
             <div>
-              {emails.map((email) => (
-                <EmailRow
-                  key={email.id}
-                  email={email}
-                  onSelect={(e) =>
-                    setSelectedEmail((prev) => (prev?.id === e.id ? null : e))
-                  }
-                  selectedId={selectedEmail?.id}
-                />
-              ))}
+              {emails.map((email) => {
+                const addr = parseSenderEmail(email.from_addr ?? email.from_address);
+                const contact = addr ? contactMap.get(addr.toLowerCase()) : undefined;
+                return (
+                  <EmailRow
+                    key={email.id}
+                    email={email}
+                    onSelect={(e) =>
+                      setSelectedEmail((prev) => (prev?.id === e.id ? null : e))
+                    }
+                    selectedId={selectedEmail?.id}
+                    contact={contact}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
@@ -664,6 +843,7 @@ export function MailPage() {
             email={selectedEmail}
             onClose={() => setSelectedEmail(null)}
             onReply={(e) => setReplyEmail(e)}
+            senderContact={contactMap.get(parseSenderEmail(selectedEmail.from_addr ?? selectedEmail.from_address)?.toLowerCase() ?? "")}
           />
         </div>
       )}
@@ -675,6 +855,7 @@ export function MailPage() {
             email={selectedEmail}
             onClose={() => setSelectedEmail(null)}
             onReply={(e) => setReplyEmail(e)}
+            senderContact={contactMap.get(parseSenderEmail(selectedEmail.from_addr ?? selectedEmail.from_address)?.toLowerCase() ?? "")}
           />
         </div>
       )}

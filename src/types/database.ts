@@ -562,53 +562,74 @@ export type Database = {
       }
       admin_emails: {
         Row: {
+          body: string | null
           contact_id: string | null
           created_at: string | null
           email_account_id: string | null
+          external_message_id: string | null
           folder: string | null
+          from_addr: string | null
           from_address: string | null
+          gmail_account_id: string | null
           gmail_message_id: string | null
           gmail_thread_id: string | null
           id: string
           is_flagged: boolean | null
           is_read: boolean | null
+          is_starred: boolean | null
+          labels: string[] | null
           received_at: string | null
           snippet: string | null
           subject: string | null
+          to_addr: string | null
           to_addresses: string[] | null
           workspace_id: string | null
         }
         Insert: {
+          body?: string | null
           contact_id?: string | null
           created_at?: string | null
           email_account_id?: string | null
+          external_message_id?: string | null
           folder?: string | null
+          from_addr?: string | null
           from_address?: string | null
+          gmail_account_id?: string | null
           gmail_message_id?: string | null
           gmail_thread_id?: string | null
           id?: string
           is_flagged?: boolean | null
           is_read?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
           received_at?: string | null
           snippet?: string | null
           subject?: string | null
+          to_addr?: string | null
           to_addresses?: string[] | null
           workspace_id?: string | null
         }
         Update: {
+          body?: string | null
           contact_id?: string | null
           created_at?: string | null
           email_account_id?: string | null
+          external_message_id?: string | null
           folder?: string | null
+          from_addr?: string | null
           from_address?: string | null
+          gmail_account_id?: string | null
           gmail_message_id?: string | null
           gmail_thread_id?: string | null
           id?: string
           is_flagged?: boolean | null
           is_read?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
           received_at?: string | null
           snippet?: string | null
           subject?: string | null
+          to_addr?: string | null
           to_addresses?: string[] | null
           workspace_id?: string | null
         }

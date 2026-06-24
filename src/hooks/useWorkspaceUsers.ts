@@ -3,6 +3,10 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 
+export interface WorkspaceMemberProfile {
+  email_signature: string | null;
+}
+
 export interface WorkspaceUser {
   id: string;
   email: string | null;
@@ -66,6 +70,45 @@ export function useUpdateMyProfile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-admin-user", user?.id] });
+    },
+  });
+}
+
+export function useMyWorkspaceMemberProfile() {
+  const { user } = useAuth();
+  const { selectedWorkspaceId } = useWorkspace();
+  return useQuery<WorkspaceMemberProfile | null>({
+    queryKey: ["workspace-member-profile", user?.id, selectedWorkspaceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("admin_workspace_members")
+        .select("email_signature")
+        .eq("user_id", user!.id)
+        .eq("workspace_id", selectedWorkspaceId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as WorkspaceMemberProfile | null;
+    },
+    enabled: !!user && !!selectedWorkspaceId,
+  });
+}
+
+export function useUpdateWorkspaceMemberProfile() {
+  const { user } = useAuth();
+  const { selectedWorkspaceId } = useWorkspace();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: { email_signature?: string | null }) => {
+      if (!user?.id || !selectedWorkspaceId) throw new Error("Must be signed in");
+      const { error } = await supabase
+        .from("admin_workspace_members")
+        .update(updates)
+        .eq("user_id", user.id)
+        .eq("workspace_id", selectedWorkspaceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspace-member-profile"] });
     },
   });
 }

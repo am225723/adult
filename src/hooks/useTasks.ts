@@ -148,6 +148,7 @@ export function useCreateTask() {
       priority?: TaskPriority;
       project_id?: string;
       parent_task_id?: string;
+      assigned_to?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
       const wsId = await getWorkspaceId(user.id);
@@ -164,6 +165,7 @@ export function useCreateTask() {
           due_date: task.due_date ?? null,
           project_id: task.project_id ?? null,
           parent_task_id: task.parent_task_id ?? null,
+          assigned_to: task.assigned_to ?? null,
         })
         .select()
         .single();
