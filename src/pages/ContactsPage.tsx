@@ -197,7 +197,7 @@ export function ContactsPage() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-full">
       {/* Left: contact list */}
       <div className="w-72 border-r border-border flex flex-col shrink-0">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">

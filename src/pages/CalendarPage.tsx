@@ -1189,7 +1189,7 @@ export function CalendarPage() {
   });
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
         {/* Today + nav */}
