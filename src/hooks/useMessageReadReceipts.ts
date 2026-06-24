@@ -35,23 +35,28 @@ export function useThreadReadReceipts(messageIds: string[]) {
     staleTime: 30 * 1000,
   });
 
-  // Realtime subscription for new read receipts
+  // Realtime subscription for new read receipts — derive stable primitives so
+  // the effect deps don't depend on the array reference (which changes every render).
+  const receiptKey = messageIds.slice(0, 5).join("|");
+  const firstMessageId = messageIds[0] ?? "none";
+  const hasMessages = messageIds.length > 0;
   useEffect(() => {
-    if (!user || !messageIds.length) return;
+    if (!user || !hasMessages) return;
+    const queryKeyIds = receiptKey.split("|");
     const channel = supabase
-      .channel(`read-receipts-${messageIds[0] ?? "none"}`)
+      .channel(`read-receipts-${firstMessageId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "admin_message_read_receipts" },
         () => {
           queryClient.invalidateQueries({
-            queryKey: ["read-receipts", ...messageIds.slice(0, 5)],
+            queryKey: ["read-receipts", ...queryKeyIds],
           });
         },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user, messageIds[0], queryClient]);
+  }, [user, receiptKey, firstMessageId, hasMessages, queryClient]);
 
   return query;
 }

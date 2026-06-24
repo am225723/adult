@@ -53,6 +53,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setSelectedWorkspaceIdState(initial);
         setIsLoading(false);
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   function setSelectedWorkspaceId(id: string) {
@@ -69,6 +70,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useWorkspace() {
   return useContext(WorkspaceContext);
 }

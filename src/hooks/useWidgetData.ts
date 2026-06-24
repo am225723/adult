@@ -22,12 +22,14 @@ export function useWidgetData(): WidgetData {
   const dateKey = new Date().toDateString();
 
   const todayStart = useMemo(() => {
+    void dateKey; // trigger re-computation when date changes
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   }, [dateKey]);
 
   const todayEnd = useMemo(() => {
+    void dateKey; // trigger re-computation when date changes
     const d = new Date(todayStart);
     d.setDate(d.getDate() + 1);
     return d;

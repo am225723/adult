@@ -14,7 +14,6 @@ import {
   LogOut,
   Search,
   Building2,
-  ChevronDown,
   Check,
 } from "lucide-react";
 import { useState, useEffect } from "react";

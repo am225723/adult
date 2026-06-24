@@ -22,7 +22,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarAccount } from "@/hooks/useCalendarAccount";
@@ -42,10 +41,6 @@ function startOfWeek(d: Date): Date {
   date.setDate(date.getDate() - day);
   date.setHours(0, 0, 0, 0);
   return date;
-}
-
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function addDays(d: Date, n: number): Date {

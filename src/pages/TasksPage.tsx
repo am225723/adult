@@ -456,6 +456,7 @@ function TaskDetail({
     setDueDate(task.due_date ? task.due_date.substring(0, 10) : "");
     setPriority(task.priority as TaskPriority);
     setAssignedTo(task.assigned_to ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
 
   const save = useCallback(
@@ -858,6 +859,7 @@ export function TasksPage() {
     if (tabParam && validTabs.includes(tabParam as TaskTab)) {
       setTab(tabParam as TaskTab);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keep selected task in sync with updated data
