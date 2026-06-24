@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound, Unplug } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound, Unplug, Pencil, Check, X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/theme-provider";
@@ -21,6 +22,14 @@ import {
   useRefreshLabels,
   useUpdateLabelSelection,
 } from "@/hooks/useGoogleSyncSettings";
+import {
+  useMyAdminUser,
+  useUpdateMyProfile,
+  useMyWorkspaceMemberProfile,
+  useUpdateWorkspaceMemberProfile,
+} from "@/hooks/useWorkspaceUsers";
+
+const LABEL_INITIAL_LIMIT = 10;
 
 function initials(name: string): string {
   return name
@@ -60,6 +69,19 @@ export function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
+  const { data: adminUser } = useMyAdminUser();
+  const updateMyProfile = useUpdateMyProfile();
+  const { data: memberProfile } = useMyWorkspaceMemberProfile();
+  const updateMemberProfile = useUpdateWorkspaceMemberProfile();
+
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [signatureInput, setSignatureInput] = useState("");
+  const [signatureEnabled, setSignatureEnabled] = useState(false);
+  const [signatureDirty, setSignatureDirty] = useState(false);
+  const [labelSearch, setLabelSearch] = useState("");
+  const [showAllLabels, setShowAllLabels] = useState(false);
+
   const {
     data: calendarAccount,
     isLoading: calendarLoading,
@@ -87,6 +109,42 @@ export function SettingsPage() {
   const invalidateGmail = useInvalidateGmailAccount();
   const [disconnectingCalendar, setDisconnectingCalendar] = useState(false);
   const [disconnectingGmail, setDisconnectingGmail] = useState(false);
+
+  useEffect(() => {
+    if (memberProfile) {
+      const sig = memberProfile.email_signature ?? "";
+      setSignatureInput(sig);
+      setSignatureEnabled(sig.length > 0);
+    }
+  }, [memberProfile]);
+
+  function startEditName() {
+    setNameInput(adminUser?.display_name ?? displayName);
+    setEditingName(true);
+  }
+
+  async function saveDisplayName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed) { setEditingName(false); return; }
+    try {
+      await updateMyProfile.mutateAsync({ display_name: trimmed });
+      toast({ title: "Display name updated" });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to update name" });
+    }
+    setEditingName(false);
+  }
+
+  async function saveSignature() {
+    const sig = signatureEnabled ? signatureInput : null;
+    try {
+      await updateMemberProfile.mutateAsync({ email_signature: sig });
+      setSignatureDirty(false);
+      toast({ title: "Signature saved" });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save signature" });
+    }
+  }
 
   async function handleDisconnectCalendar() {
     if (!calendarAccount) return;
@@ -200,13 +258,70 @@ export function SettingsPage() {
       <SettingsSection title="Profile">
         <SettingsRow>
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold shrink-0">
-            {initials(displayName)}
+            {adminUser?.avatar_url ? (
+              <img src={adminUser.avatar_url} alt={initials(displayName)} className="w-10 h-10 rounded-full object-cover" />
+            ) : initials(displayName)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+            {editingName ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  autoFocus
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveDisplayName(); if (e.key === "Escape") setEditingName(false); }}
+                  className="h-7 text-sm py-0 px-2"
+                />
+                <button onClick={saveDisplayName} className="h-6 w-6 flex items-center justify-center rounded text-green-500 hover:bg-muted">
+                  <Check size={13} />
+                </button>
+                <button onClick={() => setEditingName(false)} className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:bg-muted">
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium text-foreground truncate">{adminUser?.display_name ?? displayName}</p>
+                <button onClick={startEditName} className="text-muted-foreground hover:text-foreground" title="Edit display name">
+                  <Pencil size={12} />
+                </button>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground truncate">{email}</p>
           </div>
         </SettingsRow>
+
+        {/* Email signature */}
+        <div className="px-5 pb-4 pt-1 space-y-2 border-t border-border">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-foreground">Email signature</p>
+            <button
+              role="switch"
+              aria-checked={signatureEnabled}
+              onClick={() => { setSignatureEnabled((v) => !v); setSignatureDirty(true); }}
+              className={cn(
+                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                signatureEnabled ? "bg-primary" : "bg-muted",
+              )}
+            >
+              <span className={cn("pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-sm transition-transform", signatureEnabled ? "translate-x-4" : "translate-x-0")} />
+            </button>
+          </div>
+          {signatureEnabled && (
+            <textarea
+              value={signatureInput}
+              onChange={(e) => { setSignatureInput(e.target.value); setSignatureDirty(true); }}
+              rows={4}
+              placeholder="Write your email signature…"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-xs resize-none outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+            />
+          )}
+          {signatureDirty && (
+            <Button size="sm" className="h-7 text-xs" onClick={saveSignature} disabled={updateMemberProfile.isPending}>
+              {updateMemberProfile.isPending ? "Saving…" : "Save signature"}
+            </Button>
+          )}
+        </div>
       </SettingsSection>
 
       {/* Integrations */}
@@ -349,21 +464,53 @@ export function SettingsPage() {
                 Click "Refresh list" to load your Gmail labels.
               </p>
             ) : (
-              <div className="space-y-1.5">
-                {gmailAccount.available_labels.map((label) => {
-                  const selected = (gmailAccount.sync_labels ?? ["INBOX"]).includes(label.id);
-                  return (
-                    <label key={label.id} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={(e) => handleLabelToggle(label.id, e.target.checked)}
-                        className="accent-primary"
-                      />
-                      <span className="text-xs text-foreground">{label.name}</span>
-                    </label>
-                  );
-                })}
+              <div className="space-y-2">
+                {gmailAccount.available_labels.length > LABEL_INITIAL_LIMIT && (
+                  <div className="relative">
+                    <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={labelSearch}
+                      onChange={(e) => setLabelSearch(e.target.value)}
+                      placeholder="Search labels…"
+                      className="w-full pl-6 pr-2 py-1 text-xs bg-muted/50 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+                    />
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {(() => {
+                    const allLabels = gmailAccount.available_labels;
+                    const filtered = labelSearch.trim()
+                      ? allLabels.filter((l) => l.name.toLowerCase().includes(labelSearch.toLowerCase()))
+                      : allLabels;
+                    const displayed = (showAllLabels || labelSearch.trim()) ? filtered : filtered.slice(0, LABEL_INITIAL_LIMIT);
+                    return (
+                      <>
+                        {displayed.map((label) => {
+                          const selected = (gmailAccount.sync_labels ?? ["INBOX"]).includes(label.id);
+                          return (
+                            <label key={label.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={(e) => handleLabelToggle(label.id, e.target.checked)}
+                                className="accent-primary"
+                              />
+                              <span className="text-xs text-foreground">{label.name}</span>
+                            </label>
+                          );
+                        })}
+                        {!labelSearch.trim() && filtered.length > LABEL_INITIAL_LIMIT && (
+                          <button
+                            onClick={() => setShowAllLabels((v) => !v)}
+                            className="text-xs text-primary hover:underline mt-1"
+                          >
+                            {showAllLabels ? "Show less" : `Show ${filtered.length - LABEL_INITIAL_LIMIT} more…`}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             )}
 

@@ -22,6 +22,26 @@ type ContactEditable = {
   notes?: string | null;
 };
 
+export function useContactByEmail(email: string | null) {
+  const { user } = useAuth();
+  return useQuery<Contact | null>({
+    queryKey: ["contacts", "by-email", email],
+    queryFn: async () => {
+      if (!email) return null;
+      const bare = email.match(/<([^>]+)>/)?.[1] ?? email;
+      const { data, error } = await supabase
+        .from("admin_contacts")
+        .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
+        .ilike("primary_email", bare.trim())
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ?? null;
+    },
+    enabled: !!user && !!email,
+  });
+}
+
 export function useContacts(search = "") {
   const { user } = useAuth();
   return useQuery<Contact[]>({
