@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound, Unplug, Pencil, Check, X, Search } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound, Unplug, Pencil, Check, X, Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/theme-provider";
 import { toast } from "@/hooks/useToast";
 import { useCalendarAccount, useInvalidateCalendarAccount } from "@/hooks/useCalendarAccount";
-import { useGmailAccount, useInvalidateGmailAccount } from "@/hooks/useGmailAccount";
+import { useGmailAccounts, useInvalidateGmailAccounts, type GmailAccountRow } from "@/hooks/useGmailAccount";
 import { supabase } from "@/lib/supabase";
 import {
   useNotificationPreferences,
@@ -30,6 +30,8 @@ import {
 } from "@/hooks/useWorkspaceUsers";
 
 const LABEL_INITIAL_LIMIT = 10;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const FN_BASE = `${SUPABASE_URL}/functions/v1`;
 
 function initials(name: string): string {
   return name
@@ -39,6 +41,152 @@ function initials(name: string): string {
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
+
+function GmailAccountSection({
+  account,
+  onDisconnected,
+}: {
+  account: GmailAccountRow;
+  onDisconnected: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [labelSearch, setLabelSearch] = useState("");
+  const [showAllLabels, setShowAllLabels] = useState(false);
+  const refreshLabels = useRefreshLabels();
+  const updateLabelSelection = useUpdateLabelSelection();
+
+  async function handleDisconnect() {
+    setDisconnecting(true);
+    const { error } = await supabase.from("admin_gmail_accounts").delete().eq("id", account.id);
+    setDisconnecting(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Disconnect failed", description: error.message });
+    } else {
+      onDisconnected();
+      toast({ title: "Gmail disconnected", description: account.external_account_email ?? "" });
+    }
+  }
+
+  function handleLabelToggle(labelId: string, checked: boolean) {
+    const current = account.sync_labels ?? ["INBOX"];
+    const next = checked ? [...current, labelId] : current.filter((id) => id !== labelId);
+    if (next.length === 0) return;
+    updateLabelSelection.mutate({ accountId: account.id, labelIds: next });
+  }
+
+  return (
+    <>
+      <SettingsRow>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            {account.external_account_email ?? "Gmail account"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <CheckCircle2 size={16} className="text-green-500" />
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            aria-label="Configure labels"
+          >
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+      </SettingsRow>
+      {expanded && (
+        <div className="px-5 pb-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-foreground">Labels to sync</p>
+            <button
+              onClick={() => refreshLabels.mutate(account.id)}
+              disabled={refreshLabels.isPending}
+              className="flex items-center gap-1 text-xs text-primary disabled:opacity-50"
+            >
+              <RefreshCw size={11} className={refreshLabels.isPending ? "animate-spin" : ""} />
+              {refreshLabels.isPending ? "Fetching…" : "Refresh list"}
+            </button>
+          </div>
+
+          {(account.available_labels ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Click "Refresh list" to load your Gmail labels.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {account.available_labels.length > LABEL_INITIAL_LIMIT && (
+                <div className="relative">
+                  <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={labelSearch}
+                    onChange={(e) => setLabelSearch(e.target.value)}
+                    placeholder="Search labels…"
+                    className="w-full pl-6 pr-2 py-1 text-xs bg-muted/50 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+                  />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                {(() => {
+                  const allLabels = account.available_labels;
+                  const filtered = labelSearch.trim()
+                    ? allLabels.filter((l) =>
+                        l.name.toLowerCase().includes(labelSearch.toLowerCase()),
+                      )
+                    : allLabels;
+                  const displayed =
+                    showAllLabels || labelSearch.trim()
+                      ? filtered
+                      : filtered.slice(0, LABEL_INITIAL_LIMIT);
+                  return (
+                    <>
+                      {displayed.map((label) => {
+                        const selected = (account.sync_labels ?? ["INBOX"]).includes(label.id);
+                        return (
+                          <label key={label.id} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={(e) => handleLabelToggle(label.id, e.target.checked)}
+                              className="accent-primary"
+                            />
+                            <span className="text-xs text-foreground">{label.name}</span>
+                          </label>
+                        );
+                      })}
+                      {!labelSearch.trim() && filtered.length > LABEL_INITIAL_LIMIT && (
+                        <button
+                          onClick={() => setShowAllLabels((v) => !v)}
+                          className="text-xs text-primary hover:underline mt-1"
+                        >
+                          {showAllLabels
+                            ? "Show less"
+                            : `Show ${filtered.length - LABEL_INITIAL_LIMIT} more…`}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 border-t border-border">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full justify-start"
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+            >
+              <Unplug size={13} className="mr-1.5" />
+              {disconnecting ? "Disconnecting…" : "Disconnect this account"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 function SettingsSection({
@@ -65,7 +213,7 @@ function SettingsRow({ children }: { children: React.ReactNode }) {
 }
 
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
@@ -79,8 +227,6 @@ export function SettingsPage() {
   const [signatureInput, setSignatureInput] = useState("");
   const [signatureEnabled, setSignatureEnabled] = useState(false);
   const [signatureDirty, setSignatureDirty] = useState(false);
-  const [labelSearch, setLabelSearch] = useState("");
-  const [showAllLabels, setShowAllLabels] = useState(false);
 
   const {
     data: calendarAccount,
@@ -88,27 +234,22 @@ export function SettingsPage() {
     isError: calendarError,
   } = useCalendarAccount();
   const {
-    data: gmailAccount,
+    data: gmailAccounts = [],
     isLoading: gmailLoading,
-    isError: gmailError,
-  } = useGmailAccount();
+  } = useGmailAccounts();
 
   const { data: notifPrefs = [], isLoading: notifLoading } = useNotificationPreferences();
   const upsertPref = useUpsertNotificationPreference();
   const push = usePushNotifications();
 
   const [calendarExpanded, setCalendarExpanded] = useState(false);
-  const [gmailExpanded, setGmailExpanded] = useState(false);
 
   const refreshCalendars = useRefreshCalendars();
   const updateCalendarSelection = useUpdateCalendarSelection();
-  const refreshLabels = useRefreshLabels();
-  const updateLabelSelection = useUpdateLabelSelection();
 
   const invalidateCalendar = useInvalidateCalendarAccount();
-  const invalidateGmail = useInvalidateGmailAccount();
+  const invalidateGmailAccounts = useInvalidateGmailAccounts();
   const [disconnectingCalendar, setDisconnectingCalendar] = useState(false);
-  const [disconnectingGmail, setDisconnectingGmail] = useState(false);
 
   useEffect(() => {
     if (memberProfile && !signatureDirty) {
@@ -164,20 +305,18 @@ export function SettingsPage() {
     }
   }
 
-  async function handleDisconnectGmail() {
-    if (!gmailAccount) return;
-    setDisconnectingGmail(true);
-    const { error } = await supabase
-      .from("admin_gmail_accounts")
-      .delete()
-      .eq("id", gmailAccount.id);
-    setDisconnectingGmail(false);
-    if (error) {
-      toast({ variant: "destructive", title: "Disconnect failed", description: error.message });
-    } else {
-      setGmailExpanded(false);
-      invalidateGmail();
-      toast({ title: "Gmail disconnected" });
+  async function handleConnectGmail() {
+    if (!session) return;
+    try {
+      const res = await fetch(
+        `${FN_BASE}/google-gmail-oauth?origin=${encodeURIComponent(window.location.origin)}`,
+        { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } },
+      );
+      const { url, error } = await res.json();
+      if (error) throw new Error(error);
+      window.location.href = url;
+    } catch (err) {
+      toast({ variant: "destructive", title: "Could not connect", description: String(err) });
     }
   }
 
@@ -187,14 +326,6 @@ export function SettingsPage() {
     const next = checked ? [...current, calId] : current.filter((id) => id !== calId);
     if (next.length === 0) return; // must keep at least one
     updateCalendarSelection.mutate({ accountId: calendarAccount.id, calendarIds: next });
-  }
-
-  function handleLabelToggle(labelId: string, checked: boolean) {
-    if (!gmailAccount) return;
-    const current = gmailAccount.sync_labels ?? ["INBOX"];
-    const next = checked ? [...current, labelId] : current.filter((id) => id !== labelId);
-    if (next.length === 0) return; // must keep at least one
-    updateLabelSelection.mutate({ accountId: gmailAccount.id, labelIds: next });
   }
 
   const displayName =
@@ -416,118 +547,37 @@ export function SettingsPage() {
         )}
 
         {/* Gmail */}
-        <SettingsRow>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">Gmail</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {integrationStatus(gmailLoading, gmailError, gmailAccount?.external_account_email)}
-            </p>
-          </div>
-          {gmailAccount ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <CheckCircle2 size={16} className="text-green-500" />
-              <button
-                onClick={() => setGmailExpanded((v) => !v)}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                aria-label="Configure labels"
-              >
-                {gmailExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
+        {gmailLoading ? (
+          <SettingsRow>
+            <p className="text-sm text-muted-foreground">Checking Gmail connections…</p>
+          </SettingsRow>
+        ) : gmailAccounts.length === 0 ? (
+          <SettingsRow>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">Gmail</p>
+              <p className="text-xs text-muted-foreground">Not connected</p>
             </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => navigate("/mail")}
-              disabled={gmailLoading || gmailError}
-            >
+            <Button size="sm" variant="outline" onClick={handleConnectGmail} disabled={gmailLoading}>
               Connect
             </Button>
-          )}
-        </SettingsRow>
-
-        {gmailAccount && gmailExpanded && (
-          <div className="px-5 pb-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-foreground">Labels to sync</p>
-              <button
-                onClick={() => refreshLabels.mutate(gmailAccount.id)}
-                disabled={refreshLabels.isPending}
-                className="flex items-center gap-1 text-xs text-primary disabled:opacity-50"
-              >
-                <RefreshCw size={11} className={refreshLabels.isPending ? "animate-spin" : ""} />
-                {refreshLabels.isPending ? "Fetching…" : "Refresh list"}
-              </button>
-            </div>
-
-            {(gmailAccount.available_labels ?? []).length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Click "Refresh list" to load your Gmail labels.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {gmailAccount.available_labels.length > LABEL_INITIAL_LIMIT && (
-                  <div className="relative">
-                    <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      value={labelSearch}
-                      onChange={(e) => setLabelSearch(e.target.value)}
-                      placeholder="Search labels…"
-                      className="w-full pl-6 pr-2 py-1 text-xs bg-muted/50 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
-                    />
-                  </div>
-                )}
-                <div className="space-y-1.5">
-                  {(() => {
-                    const allLabels = gmailAccount.available_labels;
-                    const filtered = labelSearch.trim()
-                      ? allLabels.filter((l) => l.name.toLowerCase().includes(labelSearch.toLowerCase()))
-                      : allLabels;
-                    const displayed = (showAllLabels || labelSearch.trim()) ? filtered : filtered.slice(0, LABEL_INITIAL_LIMIT);
-                    return (
-                      <>
-                        {displayed.map((label) => {
-                          const selected = (gmailAccount.sync_labels ?? ["INBOX"]).includes(label.id);
-                          return (
-                            <label key={label.id} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={(e) => handleLabelToggle(label.id, e.target.checked)}
-                                className="accent-primary"
-                              />
-                              <span className="text-xs text-foreground">{label.name}</span>
-                            </label>
-                          );
-                        })}
-                        {!labelSearch.trim() && filtered.length > LABEL_INITIAL_LIMIT && (
-                          <button
-                            onClick={() => setShowAllLabels((v) => !v)}
-                            className="text-xs text-primary hover:underline mt-1"
-                          >
-                            {showAllLabels ? "Show less" : `Show ${filtered.length - LABEL_INITIAL_LIMIT} more…`}
-                          </button>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-border">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full justify-start"
-                onClick={handleDisconnectGmail}
-                disabled={disconnectingGmail}
-              >
-                <Unplug size={13} className="mr-1.5" />
-                {disconnectingGmail ? "Disconnecting…" : "Disconnect Gmail"}
+          </SettingsRow>
+        ) : (
+          <>
+            {gmailAccounts.map((acct) => (
+              <GmailAccountSection
+                key={acct.id}
+                account={acct}
+                onDisconnected={invalidateGmailAccounts}
+              />
+            ))}
+            <SettingsRow>
+              <div className="flex-1" />
+              <Button size="sm" variant="outline" onClick={handleConnectGmail} disabled={gmailLoading}>
+                <Plus size={13} className="mr-1.5" />
+                Add Gmail account
               </Button>
-            </div>
-          </div>
+            </SettingsRow>
+          </>
         )}
 
         <SettingsRow>

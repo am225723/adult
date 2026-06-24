@@ -16,6 +16,7 @@ interface WritePayload {
   subject: string;
   body: string;
   gmail_message_id?: string; // external Gmail message ID, required for send-reply
+  gmail_account_id?: string; // if omitted, uses the first connected account
 }
 
 function json(data: unknown, status = 200): Response {
@@ -76,12 +77,18 @@ Deno.serve(async (req: Request) => {
     return json({ error: "to, subject, and body are required" }, 400);
   }
 
-  const { data: account } = await supabase
+  let accountQuery = supabase
     .from("admin_gmail_accounts")
     .select("id, access_token, refresh_token, token_expires_at, external_account_email")
-    .eq("user_id", user.id)
-    .eq("provider", "google")
-    .single();
+    .eq("user_id", user.id);
+
+  if (payload.gmail_account_id) {
+    accountQuery = accountQuery.eq("id", payload.gmail_account_id);
+  } else {
+    accountQuery = accountQuery.eq("provider", "google").order("created_at").limit(1);
+  }
+
+  const { data: account } = await accountQuery.maybeSingle();
 
   if (!account) return json({ error: "No Gmail account connected" }, 400);
 
