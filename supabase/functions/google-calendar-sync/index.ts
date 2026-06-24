@@ -10,7 +10,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-const PUSH_TTL_MS = 6 * 24 * 60 * 60 * 1000; // 6 days (Google max is 7 days)
+const PUSH_TTL_MS = 6 * 24 * 60 * 60 * 1000; // 6 days
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -19,7 +19,6 @@ Deno.serve(async (req: Request) => {
 
   let calendarAccountId: string | null = null;
 
-  // Called directly with account ID, or sync all accounts
   if (req.method === "POST") {
     try {
       const body = await req.json();
@@ -64,7 +63,7 @@ Deno.serve(async (req: Request) => {
   });
 });
 
-async function syncAccount(account: CalendarAccount, retryCount = 0): Promise<number> {
+async function syncAccount(account: CalendarAccount): Promise<number> {
   const accessToken = await getAccessToken(
     account,
     supabase,
@@ -73,11 +72,58 @@ async function syncAccount(account: CalendarAccount, retryCount = 0): Promise<nu
     GOOGLE_CLIENT_SECRET,
   );
 
+  const calendarIds = account.selected_calendar_ids?.length
+    ? account.selected_calendar_ids
+    : [account.calendar_id ?? "primary"];
+
+  const syncTokenMap: Record<string, string | null> = { ...(account.sync_tokens ?? {}) };
+  let totalSynced = 0;
+
+  for (const calId of calendarIds) {
+    try {
+      const { synced, nextSyncToken } = await syncOneCalendar(
+        account,
+        calId,
+        syncTokenMap[calId] ?? null,
+        accessToken,
+      );
+      totalSynced += synced;
+      if (nextSyncToken) {
+        syncTokenMap[calId] = nextSyncToken;
+      } else {
+        delete syncTokenMap[calId];
+      }
+    } catch (err) {
+      console.error(`Failed to sync calendar ${calId} for account ${account.id}:`, err);
+    }
+  }
+
+  await supabase
+    .from("admin_calendar_accounts")
+    .update({
+      sync_tokens: syncTokenMap,
+      last_synced_at: new Date().toISOString(),
+    })
+    .eq("id", account.id);
+
+  // Push channel watches the first selected calendar (or primary)
+  await ensurePushChannel(account, calendarIds[0] ?? "primary", accessToken);
+
+  return totalSynced;
+}
+
+async function syncOneCalendar(
+  account: CalendarAccount,
+  calendarId: string,
+  syncToken: string | null,
+  accessToken: string,
+  retryCount = 0,
+): Promise<{ synced: number; nextSyncToken: string | null }> {
   let syncedCount = 0;
   let pageToken: string | undefined;
   let nextSyncToken: string | undefined;
 
-  const calId = encodeURIComponent(account.calendar_id ?? "primary");
+  const calId = encodeURIComponent(calendarId);
   const baseUrl = `https://www.googleapis.com/calendar/v3/calendars/${calId}/events`;
 
   do {
@@ -86,11 +132,9 @@ async function syncAccount(account: CalendarAccount, retryCount = 0): Promise<nu
       singleEvents: "true",
     });
 
-    if (account.sync_token) {
-      // Incremental sync
-      params.set("syncToken", account.sync_token);
+    if (syncToken) {
+      params.set("syncToken", syncToken);
     } else {
-      // Full sync: last 3 months + next 12 months
       const timeMin = new Date();
       timeMin.setMonth(timeMin.getMonth() - 3);
       const timeMax = new Date();
@@ -106,14 +150,10 @@ async function syncAccount(account: CalendarAccount, retryCount = 0): Promise<nu
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    // syncToken expired → do a full sync (guarded against infinite retry)
+    // syncToken expired — retry with a full sync (guard against infinite loop)
     if (res.status === 410) {
-      if (retryCount >= 1) throw new Error("Full sync loop detected after 410");
-      await supabase
-        .from("admin_calendar_accounts")
-        .update({ sync_token: null })
-        .eq("id", account.id);
-      return syncAccount({ ...account, sync_token: null }, retryCount + 1);
+      if (retryCount >= 1) throw new Error("Full sync loop after 410");
+      return syncOneCalendar(account, calendarId, null, accessToken, retryCount + 1);
     }
 
     if (!res.ok) {
@@ -128,19 +168,7 @@ async function syncAccount(account: CalendarAccount, retryCount = 0): Promise<nu
     syncedCount += await upsertEvents(items, account);
   } while (pageToken);
 
-  // Save sync token
-  await supabase
-    .from("admin_calendar_accounts")
-    .update({
-      sync_token: nextSyncToken ?? null,
-      last_synced_at: new Date().toISOString(),
-    })
-    .eq("id", account.id);
-
-  // Ensure push channel is active
-  await ensurePushChannel(account, accessToken);
-
-  return syncedCount;
+  return { synced: syncedCount, nextSyncToken: nextSyncToken ?? null };
 }
 
 async function upsertEvents(
@@ -210,10 +238,10 @@ async function upsertEvents(
 
 async function ensurePushChannel(
   account: CalendarAccount,
+  watchCalendarId: string,
   accessToken: string,
 ): Promise<void> {
   const now = Date.now();
-  // Renew if no channel or expiring within 24h
   if (
     account.push_channel_id &&
     account.push_expiration &&
@@ -224,7 +252,7 @@ async function ensurePushChannel(
 
   const channelId = crypto.randomUUID();
   const expiration = now + PUSH_TTL_MS;
-  const calId = encodeURIComponent(account.calendar_id ?? "primary");
+  const calId = encodeURIComponent(watchCalendarId);
 
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${calId}/events/watch`,

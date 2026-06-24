@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +14,12 @@ import {
   NOTIFICATION_CATEGORIES,
 } from "@/hooks/useNotificationPreferences";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import {
+  useRefreshCalendars,
+  useUpdateCalendarSelection,
+  useRefreshLabels,
+  useUpdateLabelSelection,
+} from "@/hooks/useGoogleSyncSettings";
 
 function initials(name: string): string {
   return name
@@ -66,6 +73,30 @@ export function SettingsPage() {
   const { data: notifPrefs = [], isLoading: notifLoading } = useNotificationPreferences();
   const upsertPref = useUpsertNotificationPreference();
   const push = usePushNotifications();
+
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
+  const [gmailExpanded, setGmailExpanded] = useState(false);
+
+  const refreshCalendars = useRefreshCalendars();
+  const updateCalendarSelection = useUpdateCalendarSelection();
+  const refreshLabels = useRefreshLabels();
+  const updateLabelSelection = useUpdateLabelSelection();
+
+  function handleCalendarToggle(calId: string, checked: boolean) {
+    if (!calendarAccount) return;
+    const current = calendarAccount.selected_calendar_ids ?? ["primary"];
+    const next = checked ? [...current, calId] : current.filter((id) => id !== calId);
+    if (next.length === 0) return; // must keep at least one
+    updateCalendarSelection.mutate({ accountId: calendarAccount.id, calendarIds: next });
+  }
+
+  function handleLabelToggle(labelId: string, checked: boolean) {
+    if (!gmailAccount) return;
+    const current = gmailAccount.sync_labels ?? ["INBOX"];
+    const next = checked ? [...current, labelId] : current.filter((id) => id !== labelId);
+    if (next.length === 0) return; // must keep at least one
+    updateLabelSelection.mutate({ accountId: gmailAccount.id, labelIds: next });
+  }
 
   const displayName =
     user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "User";
@@ -122,6 +153,7 @@ export function SettingsPage() {
 
       {/* Integrations */}
       <SettingsSection title="Integrations">
+        {/* Google Calendar */}
         <SettingsRow>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">Google Calendar</p>
@@ -130,7 +162,16 @@ export function SettingsPage() {
             </p>
           </div>
           {calendarAccount ? (
-            <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+            <div className="flex items-center gap-2 shrink-0">
+              <CheckCircle2 size={16} className="text-green-500" />
+              <button
+                onClick={() => setCalendarExpanded((v) => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                aria-label="Configure calendars"
+              >
+                {calendarExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
           ) : (
             <Button
               size="sm"
@@ -143,6 +184,51 @@ export function SettingsPage() {
           )}
         </SettingsRow>
 
+        {calendarAccount && calendarExpanded && (
+          <div className="px-5 pb-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-foreground">Calendars to sync</p>
+              <button
+                onClick={() => refreshCalendars.mutate(calendarAccount.id)}
+                disabled={refreshCalendars.isPending}
+                className="flex items-center gap-1 text-xs text-primary disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={refreshCalendars.isPending ? "animate-spin" : ""} />
+                {refreshCalendars.isPending ? "Fetching…" : "Refresh list"}
+              </button>
+            </div>
+
+            {(calendarAccount.available_calendars ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Click "Refresh list" to load your Google calendars.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {calendarAccount.available_calendars.map((cal) => {
+                  const selected = (calendarAccount.selected_calendar_ids ?? ["primary"]).includes(cal.id);
+                  return (
+                    <label key={cal.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => handleCalendarToggle(cal.id, e.target.checked)}
+                        className="accent-primary"
+                      />
+                      <span className="text-xs text-foreground">
+                        {cal.summary}
+                        {cal.primary && (
+                          <span className="ml-1 text-muted-foreground">(primary)</span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Gmail */}
         <SettingsRow>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">Gmail</p>
@@ -151,7 +237,16 @@ export function SettingsPage() {
             </p>
           </div>
           {gmailAccount ? (
-            <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+            <div className="flex items-center gap-2 shrink-0">
+              <CheckCircle2 size={16} className="text-green-500" />
+              <button
+                onClick={() => setGmailExpanded((v) => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                aria-label="Configure labels"
+              >
+                {gmailExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
           ) : (
             <Button
               size="sm"
@@ -163,6 +258,45 @@ export function SettingsPage() {
             </Button>
           )}
         </SettingsRow>
+
+        {gmailAccount && gmailExpanded && (
+          <div className="px-5 pb-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-foreground">Labels to sync</p>
+              <button
+                onClick={() => refreshLabels.mutate(gmailAccount.id)}
+                disabled={refreshLabels.isPending}
+                className="flex items-center gap-1 text-xs text-primary disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={refreshLabels.isPending ? "animate-spin" : ""} />
+                {refreshLabels.isPending ? "Fetching…" : "Refresh list"}
+              </button>
+            </div>
+
+            {(gmailAccount.available_labels ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Click "Refresh list" to load your Gmail labels.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {gmailAccount.available_labels.map((label) => {
+                  const selected = (gmailAccount.sync_labels ?? ["INBOX"]).includes(label.id);
+                  return (
+                    <label key={label.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => handleLabelToggle(label.id, e.target.checked)}
+                        className="accent-primary"
+                      />
+                      <span className="text-xs text-foreground">{label.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <SettingsRow>
           <div className="flex-1 min-w-0">
