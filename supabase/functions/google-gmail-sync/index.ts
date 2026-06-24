@@ -157,7 +157,6 @@ async function syncAccount(account: any): Promise<number> {
       is_read: !msg.labelIds?.includes("UNREAD"),
       is_starred: msg.labelIds?.includes("STARRED") ?? false,
       labels: msg.labelIds ?? [],
-      updated_at: new Date().toISOString(),
     };
 
     const { error } = await supabase
