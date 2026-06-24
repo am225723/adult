@@ -119,6 +119,10 @@ Deno.serve(async (req: Request) => {
   const workspaceId = workspaceResult.data?.workspace_id ?? null;
   const priorBriefing = priorResult.data?.briefing_text ?? null;
 
+  if (!workspaceId) {
+    console.warn("No workspace membership found for user", user.id, "— briefing will not be persisted.");
+  }
+
   let result: unknown;
   try {
     const controller = new AbortController();
@@ -165,7 +169,7 @@ Deno.serve(async (req: Request) => {
 
   // Persist to DB (upsert — one per user per day)
   if (workspaceId && briefing) {
-    await serviceClient.from("admin_ai_briefings").upsert(
+    const { error: upsertError } = await serviceClient.from("admin_ai_briefings").upsert(
       {
         workspace_id: workspaceId,
         user_id: user.id,
@@ -176,6 +180,7 @@ Deno.serve(async (req: Request) => {
       },
       { onConflict: "user_id,briefing_date" },
     );
+    if (upsertError) console.error("Failed to persist briefing:", upsertError);
   }
 
   const body: BriefingResponse = { briefing, sources };

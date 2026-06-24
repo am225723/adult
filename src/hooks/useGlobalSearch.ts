@@ -207,6 +207,9 @@ async function searchCalls(
   q: string,
   quickFilters: QuickFilter[]
 ): Promise<SearchResult[]> {
+  // Non-voicemail calls have no searchable text; a text query cannot match anything.
+  if (q) return [];
+
   let query = supabase
     .from("admin_phone_calls")
     .select(
@@ -316,7 +319,6 @@ export function useGlobalSearch(
         if (error) throw error;
 
         const NAVIGATE: Record<string, string> = {
-          contact: "/contacts",
           task: "/tasks",
           email: "/mail",
           message: "/chat",
@@ -325,11 +327,13 @@ export function useGlobalSearch(
 
         const all: SearchResult[] = (data ?? []).map(
           (r: { result_type: string; result_id: string; title: string; subtitle: string | null; rank: number }) => ({
-            type: (r.result_type === "voicemail" ? "voicemail" : r.result_type) as SearchResult["type"],
+            type: r.result_type as SearchResult["type"],
             id: r.result_id,
             title: r.title ?? "",
             subtitle: r.subtitle ?? undefined,
-            navigateTo: NAVIGATE[r.result_type] ?? "/",
+            navigateTo: r.result_type === "contact"
+              ? `/contacts/${r.result_id}`
+              : NAVIGATE[r.result_type] ?? "/",
           })
         );
 
