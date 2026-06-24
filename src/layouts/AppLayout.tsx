@@ -119,12 +119,10 @@ export function AppLayout() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="w-9 h-9 rounded-lg bg-foreground flex items-center justify-center mb-3 shrink-0 hover:opacity-80 transition-opacity"
+                className="w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 hover:opacity-80 transition-opacity overflow-hidden"
                 title={selectedWorkspace?.name ?? "Switch workspace"}
               >
-                <span className="text-background text-xs font-bold leading-none">
-                  {selectedWorkspace?.name?.slice(0, 1).toUpperCase() ?? "A"}
-                </span>
+                <img src="/logo.svg" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="start" className="w-52">
@@ -149,12 +147,10 @@ export function AppLayout() {
           </DropdownMenu>
         ) : (
           <div
-            className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center mb-3 shrink-0"
+            className="w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 overflow-hidden"
             title={selectedWorkspace?.name}
           >
-            <span className="text-background text-xs font-bold leading-none">
-              {selectedWorkspace?.name?.slice(0, 1).toUpperCase() ?? "A"}
-            </span>
+            <img src="/logo.svg" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
           </div>
         )}
 
