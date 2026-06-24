@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import DOMPurify from "dompurify";
 import { Mail, RefreshCw, X, Flag, CheckCircle2, Plus, Reply, PenLine, UserPlus, Star, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +20,34 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGmailAccount } from "@/hooks/useGmailAccount";
 import { useEmails, type EmailFilter, type Email } from "@/hooks/useEmails";
 import { useCreateTask } from "@/hooks/useTasks";
-import { useContactByEmail, useCreateContact } from "@/hooks/useContacts";
+import { useCreateContact } from "@/hooks/useContacts";
+import type { Contact } from "@/hooks/useContacts";
 import { useMyWorkspaceMemberProfile } from "@/hooks/useWorkspaceUsers";
 import { toast } from "@/hooks/useToast";
 import { supabase } from "@/lib/supabase";
+
+function useContactsByEmails(emails: string[]) {
+  const { user } = useAuth();
+  const key = emails.slice().sort().join(",");
+  return useQuery<Map<string, Contact>>({
+    queryKey: ["contacts", "batch", key],
+    queryFn: async () => {
+      if (!emails.length) return new Map();
+      const { data, error } = await supabase
+        .from("admin_contacts")
+        .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
+        .in("primary_email", emails);
+      if (error) throw error;
+      const map = new Map<string, Contact>();
+      for (const c of data ?? []) {
+        if (c.primary_email) map.set(c.primary_email.toLowerCase(), c as Contact);
+      }
+      return map;
+    },
+    enabled: !!user && emails.length > 0,
+    staleTime: 60_000,
+  });
+}
 
 function parseSenderName(from: string | null): string {
   if (!from) return "Unknown sender";
@@ -40,10 +65,7 @@ function parseSenderEmail(from: string | null): string | null {
 }
 
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
-    .replace(/javascript:/gi, "");
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 }
 
 function isHtml(content: string): boolean {
@@ -180,7 +202,7 @@ function ReplyDialog({
 
   useEffect(() => {
     if (open) {
-      setBody(signature ? `\n\n-- \n${signature}` : "");
+      setBody((prev) => prev || (signature ? `\n\n-- \n${signature}` : ""));
     }
   }, [open, signature]);
 
@@ -301,15 +323,14 @@ function EmailRow({
   email,
   onSelect,
   selectedId,
+  contact,
 }: {
   email: Email;
   onSelect: (email: Email) => void;
   selectedId?: string;
+  contact?: Contact | null;
 }) {
   const rawFrom = email.from_addr ?? email.from_address;
-  const senderEmail = parseSenderEmail(rawFrom);
-  const { data: contact } = useContactByEmail(senderEmail);
-
   const senderDisplay = contact?.display_name ?? parseSenderName(rawFrom);
   const isSelected = selectedId === email.id;
   const isStarred = email.is_starred || email.is_flagged;
@@ -348,10 +369,12 @@ function EmailDetail({
   email,
   onClose,
   onReply,
+  senderContact,
 }: {
   email: Email;
   onClose: () => void;
   onReply: (email: Email) => void;
+  senderContact?: Contact | null;
 }) {
   const createTask = useCreateTask();
   const createContact = useCreateContact();
@@ -363,7 +386,6 @@ function EmailDetail({
   const rawFrom = email.from_addr ?? email.from_address;
   const senderEmail = parseSenderEmail(rawFrom);
   const senderName = parseSenderName(rawFrom);
-  const { data: senderContact } = useContactByEmail(senderEmail);
 
   const rawBody = email.body || email.snippet || "";
   const bodyIsHtml = isHtml(rawBody);
@@ -628,6 +650,16 @@ export function MailPage() {
     refetch: refetchEmails,
   } = useEmails(filter);
 
+  const senderEmails = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of emails) {
+      const addr = parseSenderEmail(e.from_addr ?? e.from_address);
+      if (addr) set.add(addr.toLowerCase());
+    }
+    return Array.from(set);
+  }, [emails]);
+  const { data: contactMap = new Map() } = useContactsByEmails(senderEmails);
+
   // Parse initial filter from URL params
   useEffect(() => {
     const filterParam = searchParams.get("filter");
@@ -784,16 +816,21 @@ export function MailPage() {
             </div>
           ) : (
             <div>
-              {emails.map((email) => (
-                <EmailRow
-                  key={email.id}
-                  email={email}
-                  onSelect={(e) =>
-                    setSelectedEmail((prev) => (prev?.id === e.id ? null : e))
-                  }
-                  selectedId={selectedEmail?.id}
-                />
-              ))}
+              {emails.map((email) => {
+                const addr = parseSenderEmail(email.from_addr ?? email.from_address);
+                const contact = addr ? contactMap.get(addr.toLowerCase()) : undefined;
+                return (
+                  <EmailRow
+                    key={email.id}
+                    email={email}
+                    onSelect={(e) =>
+                      setSelectedEmail((prev) => (prev?.id === e.id ? null : e))
+                    }
+                    selectedId={selectedEmail?.id}
+                    contact={contact}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
@@ -806,6 +843,7 @@ export function MailPage() {
             email={selectedEmail}
             onClose={() => setSelectedEmail(null)}
             onReply={(e) => setReplyEmail(e)}
+            senderContact={contactMap.get(parseSenderEmail(selectedEmail.from_addr ?? selectedEmail.from_address)?.toLowerCase() ?? "")}
           />
         </div>
       )}
@@ -817,6 +855,7 @@ export function MailPage() {
             email={selectedEmail}
             onClose={() => setSelectedEmail(null)}
             onReply={(e) => setReplyEmail(e)}
+            senderContact={contactMap.get(parseSenderEmail(selectedEmail.from_addr ?? selectedEmail.from_address)?.toLowerCase() ?? "")}
           />
         </div>
       )}

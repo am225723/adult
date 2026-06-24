@@ -32,7 +32,7 @@ export function useContactByEmail(email: string | null) {
       const { data, error } = await supabase
         .from("admin_contacts")
         .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
-        .ilike("primary_email", bare.trim())
+        .eq("primary_email", bare.trim().toLowerCase())
         .limit(1)
         .maybeSingle();
       if (error) throw error;

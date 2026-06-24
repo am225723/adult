@@ -111,11 +111,12 @@ export function SettingsPage() {
   const [disconnectingGmail, setDisconnectingGmail] = useState(false);
 
   useEffect(() => {
-    if (memberProfile) {
+    if (memberProfile && !signatureDirty) {
       const sig = memberProfile.email_signature ?? "";
       setSignatureInput(sig);
       setSignatureEnabled(sig.length > 0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberProfile]);
 
   function startEditName() {
