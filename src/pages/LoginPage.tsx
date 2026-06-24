@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/useToast";
+import { KeyRound } from "lucide-react";
 
 type Mode = "sign_in" | "sign_up" | "forgot";
 
@@ -52,6 +53,21 @@ export function LoginPage() {
         description: err instanceof Error ? err.message : "Please try again.",
       });
     } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePasskeyLogin() {
+    setSubmitting(true);
+    const { error } = await supabase.auth.signInWithPasskey();
+    if (error) {
+      if (error.message !== "The operation either timed out or was not allowed.") {
+        toast({
+          variant: "destructive",
+          title: "Passkey sign-in failed",
+          description: error.message,
+        });
+      }
       setSubmitting(false);
     }
   }
@@ -185,15 +201,27 @@ export function LoginPage() {
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={handleGoogleLogin}
-              disabled={submitting}
-            >
-              <GoogleIcon />
-              Continue with Google
-            </Button>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handlePasskeyLogin}
+                disabled={submitting}
+              >
+                <KeyRound size={16} />
+                Sign in with passkey
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleGoogleLogin}
+                disabled={submitting}
+              >
+                <GoogleIcon />
+                Continue with Google
+              </Button>
+            </div>
           </>
         )}
 

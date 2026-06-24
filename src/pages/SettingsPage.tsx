@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/theme-provider";
+import { toast } from "@/hooks/useToast";
 import { useCalendarAccount } from "@/hooks/useCalendarAccount";
 import { useGmailAccount } from "@/hooks/useGmailAccount";
 import { supabase } from "@/lib/supabase";
@@ -110,6 +111,24 @@ export function SettingsPage() {
   function quietHours(field: "quiet_hours_start" | "quiet_hours_end"): string {
     const pref = notifPrefs.find((p) => p.category === "global");
     return pref?.[field] ?? "";
+  }
+
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+
+  async function handleRegisterPasskey() {
+    setPasskeyLoading(true);
+    try {
+      const { error } = await supabase.auth.registerPasskey();
+      if (error) throw error;
+      toast({ title: "Passkey registered", description: "You can now sign in with your passkey." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Please try again.";
+      if (msg !== "The operation either timed out or was not allowed.") {
+        toast({ variant: "destructive", title: "Passkey registration failed", description: msg });
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
   }
 
   async function handleSignOut() {
@@ -451,6 +470,27 @@ export function SettingsPage() {
       </SettingsSection>
 
       {/* Account */}
+      <SettingsSection title="Security">
+        <SettingsRow>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">Passkey</p>
+            <p className="text-xs text-muted-foreground">
+              Register a passkey (Face ID, Touch ID, or hardware key) to sign in without a password.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRegisterPasskey}
+            disabled={passkeyLoading}
+            className="shrink-0"
+          >
+            <KeyRound size={14} className="mr-1.5" />
+            {passkeyLoading ? "Registering…" : "Register passkey"}
+          </Button>
+        </SettingsRow>
+      </SettingsSection>
+
       <SettingsSection title="Account">
         <SettingsRow>
           <div className="flex-1">
