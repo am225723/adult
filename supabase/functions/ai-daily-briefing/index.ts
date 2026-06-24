@@ -21,7 +21,7 @@ interface BriefingResponse {
   sources: string[];
 }
 
-function buildPrompt(ctx: BriefingContext): string {
+function buildPrompt(ctx: BriefingContext, priorBriefing: string | null): string {
   const items: string[] = [];
   if (ctx.tasksOverdue > 0)
     items.push(`${ctx.tasksOverdue} overdue task${ctx.tasksOverdue !== 1 ? "s" : ""}`);
@@ -39,17 +39,21 @@ function buildPrompt(ctx: BriefingContext): string {
   const hasUrgent = ctx.tasksOverdue > 0 || ctx.missedCalls > 0;
   const summary = items.length > 0 ? items.join(", ") : "nothing pending";
 
+  const priorSection = priorBriefing
+    ? `\nPrevious briefing for comparison: "${priorBriefing}"\n`
+    : "";
+
   return `You are a concise personal productivity assistant. Write a 2–3 sentence daily briefing for ${ctx.userName || "the user"} on ${ctx.date}.
 
 Status: ${summary}.${hasUrgent ? " There are urgent items." : ""}
-
+${priorSection}
 Rules:
 - Be direct and motivating
 - Prioritize urgent items first
 - Do not use bullet points or headers
 - Do not invent names, emails, subjects, or events not mentioned above
 - Do not start with a greeting like "Good morning"
-- Keep it under 60 words`;
+${priorBriefing ? "- If things have improved or worsened since the previous briefing, note it briefly\n" : ""}- Keep it under 75 words`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -65,7 +69,6 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Verify JWT
   const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const userToken = authHeader.replace("Bearer ", "");
   const { data: { user }, error: userErr } = await serviceClient.auth.getUser(userToken);
@@ -93,6 +96,29 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Fetch workspace_id and prior briefing in parallel
+  const [workspaceResult, priorResult] = await Promise.all([
+    serviceClient
+      .from("admin_workspace_members")
+      .select("workspace_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .single(),
+    serviceClient
+      .from("admin_ai_briefings")
+      .select("briefing_text, briefing_date")
+      .eq("user_id", user.id)
+      .lt("briefing_date", today)
+      .order("briefing_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const workspaceId = workspaceResult.data?.workspace_id ?? null;
+  const priorBriefing = priorResult.data?.briefing_text ?? null;
+
   let result: unknown;
   try {
     const controller = new AbortController();
@@ -108,7 +134,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: "claude-haiku-4-5",
         max_tokens: 200,
-        messages: [{ role: "user", content: buildPrompt(ctx) }],
+        messages: [{ role: "user", content: buildPrompt(ctx, priorBriefing) }],
       }),
     }).finally(() => clearTimeout(timeout));
 
@@ -136,6 +162,21 @@ Deno.serve(async (req: Request) => {
   if (ctx.unreadEmails > 0) sources.push("Email");
   if (ctx.missedCalls > 0) sources.push("Phone");
   if (ctx.unreadMessages > 0) sources.push("Messages");
+
+  // Persist to DB (upsert — one per user per day)
+  if (workspaceId && briefing) {
+    await serviceClient.from("admin_ai_briefings").upsert(
+      {
+        workspace_id: workspaceId,
+        user_id: user.id,
+        briefing_date: today,
+        briefing_text: briefing,
+        sources,
+        context_snapshot: ctx as unknown as Record<string, unknown>,
+      },
+      { onConflict: "user_id,briefing_date" },
+    );
+  }
 
   const body: BriefingResponse = { briefing, sources };
   return new Response(JSON.stringify(body), {
