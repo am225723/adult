@@ -6,9 +6,20 @@ export function AuthCallbackPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      navigate(session ? "/dashboard" : "/login", { replace: true });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        navigate("/dashboard", { replace: true });
+      } else if (event === "SIGNED_OUT") {
+        navigate("/login", { replace: true });
+      }
     });
+
+    // Fallback: session already established before listener attached
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) navigate("/dashboard", { replace: true });
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   return (
