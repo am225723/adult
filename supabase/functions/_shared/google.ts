@@ -66,6 +66,9 @@ export interface CalendarAccount {
   user_id: string;
   provider: string;
   calendar_id: string;
+  available_calendars: { id: string; summary: string; primary?: boolean; backgroundColor?: string | null }[];
+  selected_calendar_ids: string[];
+  sync_tokens: Record<string, string>;
   access_token: string | null;
   refresh_token: string | null;
   token_expires_at: string | null;
