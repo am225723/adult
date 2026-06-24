@@ -17,7 +17,7 @@ import {
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { useGmailAccount } from "@/hooks/useGmailAccount";
+import { useGmailAccounts, type GmailAccountRow } from "@/hooks/useGmailAccount";
 import { useEmails, type EmailFilter, type Email } from "@/hooks/useEmails";
 import { useCreateTask } from "@/hooks/useTasks";
 import { useCreateContact } from "@/hooks/useContacts";
@@ -80,29 +80,35 @@ const FN_BASE = `${SUPABASE_URL}/functions/v1`;
 function ComposeDialog({
   open,
   onOpenChange,
+  accounts,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  accounts: GmailAccountRow[];
 }) {
   const { session } = useAuth();
   const { data: memberProfile } = useMyWorkspaceMemberProfile();
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [sending, setSending] = useState(false);
 
   const signature = memberProfile?.email_signature ?? null;
 
   useEffect(() => {
-    if (open && signature) {
-      setBody((prev) => prev || `\n\n-- \n${signature}`);
+    if (open) {
+      if (accounts.length > 0 && !selectedAccountId) setSelectedAccountId(accounts[0].id);
+      setBody((prev) => prev || (signature ? `\n\n-- \n${signature}` : ""));
     }
-  }, [open, signature]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, accounts, signature]);
 
   function reset() {
     setTo("");
     setSubject("");
     setBody("");
+    setSelectedAccountId("");
   }
 
   async function handleSend(e: React.FormEvent) {
@@ -116,7 +122,13 @@ function ComposeDialog({
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ action: "send-new", to: to.trim(), subject: subject.trim(), body }),
+        body: JSON.stringify({
+          action: "send-new",
+          to: to.trim(),
+          subject: subject.trim(),
+          body,
+          gmail_account_id: selectedAccountId || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send");
@@ -137,6 +149,23 @@ function ComposeDialog({
           <DialogTitle>New email</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSend} className="space-y-3">
+          {accounts.length > 1 && (
+            <div className="space-y-1">
+              <Label htmlFor="compose-from">From</Label>
+              <select
+                id="compose-from"
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.external_account_email ?? a.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="compose-to">To</Label>
             <Input
@@ -188,23 +217,28 @@ function ReplyDialog({
   email,
   open,
   onOpenChange,
+  accounts,
 }: {
   email: Email | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  accounts: GmailAccountRow[];
 }) {
   const { session } = useAuth();
   const { data: memberProfile } = useMyWorkspaceMemberProfile();
   const [body, setBody] = useState("");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [sending, setSending] = useState(false);
 
   const signature = memberProfile?.email_signature ?? null;
 
   useEffect(() => {
     if (open) {
+      if (accounts.length > 0 && !selectedAccountId) setSelectedAccountId(accounts[0].id);
       setBody((prev) => prev || (signature ? `\n\n-- \n${signature}` : ""));
     }
-  }, [open, signature]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, accounts, signature]);
 
   if (!email) return null;
 
@@ -229,6 +263,7 @@ function ReplyDialog({
           subject: replySubject,
           body,
           gmail_message_id: email.gmail_message_id ?? email.external_message_id,
+          gmail_account_id: selectedAccountId || undefined,
         }),
       });
       const data = await res.json();
@@ -249,6 +284,22 @@ function ReplyDialog({
           <DialogTitle>Reply to email</DialogTitle>
         </DialogHeader>
         <div className="space-y-1 text-sm">
+          {accounts.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground">From:</span>
+              <select
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+                className="flex-1 h-7 rounded border border-input bg-background px-2 text-xs"
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.external_account_email ?? a.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <p className="text-muted-foreground">
             <span className="font-medium text-foreground">To:</span> {replyTo}
           </p>
@@ -642,8 +693,8 @@ export function MailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const { data: account, isLoading: accountLoading, refetch: refetchAccount } =
-    useGmailAccount();
+  const { data: accounts = [], isLoading: accountLoading, refetch: refetchAccounts } =
+    useGmailAccounts();
   const {
     data: emails = [],
     isLoading: emailsLoading,
@@ -685,7 +736,7 @@ export function MailPage() {
     const error = searchParams.get("error");
     if (connected === "true") {
       toast({ title: "Gmail connected", description: "Your emails are syncing now." });
-      refetchAccount();
+      refetchAccounts();
       navigate("/mail", { replace: true });
     } else if (error) {
       toast({
@@ -717,19 +768,22 @@ export function MailPage() {
   }
 
   async function handleSync() {
-    if (!account || !session) return;
+    if (!accounts.length || !session) return;
     setSyncing(true);
     try {
-      const res = await fetch(`${FN_BASE}/google-gmail-sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ gmail_account_id: account.id }),
-      });
-      if (!res.ok) throw new Error(`Sync returned ${res.status}`);
-      await Promise.all([refetchAccount(), refetchEmails()]);
+      await Promise.all(
+        accounts.map((a) =>
+          fetch(`${FN_BASE}/google-gmail-sync`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session!.access_token}`,
+            },
+            body: JSON.stringify({ gmail_account_id: a.id }),
+          }),
+        ),
+      );
+      await Promise.all([refetchAccounts(), refetchEmails()]);
       toast({ title: "Gmail synced" });
     } catch {
       toast({ variant: "destructive", title: "Sync failed" });
@@ -772,7 +826,7 @@ export function MailPage() {
 
           <div className="flex-1" />
 
-          {account && (
+          {accounts.length > 0 && (
             <>
               <Button
                 variant="ghost"
@@ -796,7 +850,7 @@ export function MailPage() {
         <div className="flex-1 overflow-auto">
           {accountLoading ? (
             <LoadingSpinner message="Checking Gmail connection…" />
-          ) : !account ? (
+          ) : accounts.length === 0 ? (
             <ConnectPrompt onConnect={handleConnect} />
           ) : emailsLoading ? (
             <LoadingSpinner message="Loading emails…" />
@@ -860,11 +914,12 @@ export function MailPage() {
         </div>
       )}
 
-      <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} />
+      <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} accounts={accounts} />
       <ReplyDialog
         email={replyEmail}
         open={!!replyEmail}
         onOpenChange={(v) => { if (!v) setReplyEmail(null); }}
+        accounts={accounts}
       />
     </div>
   );
