@@ -4,77 +4,86 @@
 
 @layer base {
   :root {
-    --background: 0 0% 99%;
-    --foreground: 240 10% 8%;
+    /* Serene Clinical Dashboard — Light Mode */
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 8%;
+    /* Surfaces */
+    --background: 106 100% 95%;       /* #ebffe5 soft botanical green */
+    --foreground: 123 45% 9%;         /* #0c200d deep forest text */
+
+    --card: 0 0% 100%;                /* white cards lift off background */
+    --card-foreground: 123 45% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 8%;
+    --popover-foreground: 123 45% 9%;
 
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
+    /* Brand colors */
+    --primary: 169 46% 29%;           /* #286B5F muted pine green */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 144 40% 49%;         /* #4CB074 vibrant forest green (CTAs) */
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
+    /* Neutral tones */
+    --muted: 106 35% 89%;
+    --muted-foreground: 160 12% 43%;
 
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --accent: 144 40% 49%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    /* Error */
+    --destructive: 0 65% 51%;         /* #D32F2F clinical red */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    /* Structure */
+    --border: 113 22% 82%;
+    --input: 113 22% 82%;
+    --ring: 144 40% 49%;              /* focus ring — secondary green */
 
-    --radius: 0.5rem;
+    --radius: 1rem;                   /* 16px base per design system */
 
-    --sidebar-background: 240 4.8% 97%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-border: 240 5.9% 90%;
-    --sidebar-accent: 240 4.8% 93%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    /* Sidebar */
+    --sidebar-background: 106 45% 91%;
+    --sidebar-foreground: 123 35% 22%;
+    --sidebar-border: 113 22% 79%;
+    --sidebar-accent: 144 25% 85%;
+    --sidebar-accent-foreground: 169 46% 29%;
   }
 
   .dark {
-    --background: 240 10% 6%;
-    --foreground: 0 0% 95%;
+    /* Serene Clinical Dashboard — Dark Mode */
+    --background: 117 25% 8%;
+    --foreground: 108 55% 91%;        /* #dff8d9 */
 
-    --card: 240 10% 8%;
-    --card-foreground: 0 0% 95%;
+    --card: 117 25% 12%;
+    --card-foreground: 108 55% 91%;
 
-    --popover: 240 10% 8%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 117 25% 12%;
+    --popover-foreground: 108 55% 91%;
 
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 169 38% 62%;
+    --primary-foreground: 117 25% 8%;
 
-    --secondary: 240 3.7% 14%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 144 35% 52%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 3.7% 14%;
-    --muted-foreground: 240 5% 60%;
+    --muted: 117 20% 16%;
+    --muted-foreground: 113 18% 55%;
 
-    --accent: 240 3.7% 14%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 144 35% 52%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 240 3.7% 16%;
-    --input: 240 3.7% 16%;
-    --ring: 240 4.9% 83.9%;
+    --border: 117 20% 18%;
+    --input: 117 20% 18%;
+    --ring: 144 35% 52%;
 
-    --sidebar-background: 240 10% 5%;
-    --sidebar-foreground: 240 5% 64.9%;
-    --sidebar-border: 240 3.7% 12%;
-    --sidebar-accent: 240 3.7% 10%;
-    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-background: 117 25% 6%;
+    --sidebar-foreground: 108 38% 74%;
+    --sidebar-border: 117 20% 14%;
+    --sidebar-accent: 117 20% 14%;
+    --sidebar-accent-foreground: 108 55% 91%;
   }
 }
 
@@ -85,7 +94,12 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
   }
 
   /* Scrollbar styling */
