@@ -4,7 +4,6 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   PhoneMissed,
-  ChevronDown,
   ChevronRight,
   X,
   Plus,

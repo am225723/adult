@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Mail,
@@ -28,7 +28,6 @@ import {
   useCreateContactNote,
   useUpdateContactNote,
   useDeleteContactNote,
-  type ContactNote,
 } from "@/hooks/useContactNotes";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -448,6 +447,7 @@ function ContactDetailView({ id }: { id: string }) {
         if (!cancelled) setWorkspaceId(data?.workspace_id ?? null);
       });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   if (isLoading) return <LoadingSpinner message="Loading contact…" />;

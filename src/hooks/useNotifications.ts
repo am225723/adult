@@ -39,6 +39,7 @@ export function useNotifications() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, qc]);
 
   return useQuery<Notification[]>({

@@ -14,7 +14,7 @@ export function parseAttachmentMeta(raw: string | null): AttachmentMeta | null {
   try {
     const parsed = JSON.parse(raw);
     if (parsed.path && parsed.name) return parsed as AttachmentMeta;
-  } catch {}
+  } catch { /* invalid JSON — return null */ }
   return null;
 }
 

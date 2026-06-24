@@ -72,7 +72,6 @@ export function useUpdateContactNote() {
     mutationFn: async ({
       id,
       body,
-      contactId,
     }: {
       id: string;
       body: string;
@@ -98,7 +97,7 @@ export function useDeleteContactNote() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ id, contactId }: { id: string; contactId: string }) => {
+    mutationFn: async ({ id }: { id: string; contactId: string }) => {
       const { error } = await supabase
         .from("admin_contact_notes")
         .delete()

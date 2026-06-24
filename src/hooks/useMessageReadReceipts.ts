@@ -51,6 +51,7 @@ export function useThreadReadReceipts(messageIds: string[]) {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, messageIds[0], queryClient]);
 
   return query;

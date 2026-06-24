@@ -40,6 +40,7 @@ export function usePushNotifications() {
         setEnabled(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, supported]);
 
   const enable = useCallback(async () => {
@@ -79,6 +80,7 @@ export function usePushNotifications() {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, supported]);
 
   const disable = useCallback(async () => {
@@ -103,6 +105,7 @@ export function usePushNotifications() {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, supported]);
 
   return { supported, enabled, loading, permission, enable, disable };

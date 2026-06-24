@@ -20,7 +20,7 @@ export function useContactTasks(contactId: string) {
 
       if (!links || links.length === 0) return [];
 
-      const taskIds = links.map((l: any) => l.task_id);
+      const taskIds = links.map((l: { task_id: string }) => l.task_id);
 
       // Get the actual tasks
       const { data, error } = await supabase

@@ -14,7 +14,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { ErrorState } from "@/components/ErrorState";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useGmailAccount } from "@/hooks/useGmailAccount";
@@ -493,6 +492,7 @@ export function MailPage() {
     if (filterParam && ["inbox", "unread", "starred", "all"].includes(filterParam)) {
       setFilter(filterParam as EmailFilter);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update selected email when emails list changes
@@ -521,6 +521,7 @@ export function MailPage() {
       });
       navigate("/mail", { replace: true });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   async function handleConnect() {
