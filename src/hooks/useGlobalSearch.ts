@@ -70,7 +70,7 @@ async function searchTasks(
     .limit(8);
 
   if (q) {
-    query = query.or(`title.ilike.%${q}%,notes.ilike.%${q}%`);
+    query = query.textSearch("search_vector", q, { type: "websearch", config: "english" });
   }
 
   if (quickFilters.includes("overdue")) {
@@ -111,9 +111,7 @@ async function searchEmails(
     .limit(8);
 
   if (q) {
-    query = query.or(
-      `subject.ilike.%${q}%,snippet.ilike.%${q}%,from_address.ilike.%${q}%`
-    );
+    query = query.textSearch("search_vector", q, { type: "websearch", config: "english" });
   }
 
   if (quickFilters.includes("unread")) query = query.eq("is_read", false);
@@ -149,9 +147,7 @@ async function searchContacts(q: string): Promise<SearchResult[]> {
     .limit(8);
 
   if (q) {
-    query = query.or(
-      `display_name.ilike.%${q}%,primary_email.ilike.%${q}%,primary_phone.ilike.%${q}%,company.ilike.%${q}%`
-    );
+    query = query.textSearch("search_vector", q, { type: "websearch", config: "english" });
   }
 
   query = query.order("display_name");
@@ -179,7 +175,7 @@ async function searchMessages(
     .limit(8);
 
   if (q) {
-    query = query.ilike("body", `%${q}%`);
+    query = query.textSearch("search_vector", q, { type: "websearch", config: "english" });
   }
 
   if (quickFilters.includes("unread")) query = query.eq("is_read", false);
@@ -211,6 +207,9 @@ async function searchCalls(
   q: string,
   quickFilters: QuickFilter[]
 ): Promise<SearchResult[]> {
+  // Non-voicemail calls have no searchable text; a text query cannot match anything.
+  if (q) return [];
+
   let query = supabase
     .from("admin_phone_calls")
     .select(
@@ -218,10 +217,6 @@ async function searchCalls(
     )
     .is("voicemail_transcript", null)
     .limit(8);
-
-  if (q) {
-    query = query.ilike("status", `%${q}%`);
-  }
 
   if (quickFilters.includes("missed_calls")) {
     query = query.in("status", ["missed", "no-answer", "abandoned"]);
@@ -262,7 +257,7 @@ async function searchVoicemails(
     .limit(8);
 
   if (q) {
-    query = query.ilike("voicemail_transcript", `%${q}%`);
+    query = query.textSearch("search_vector", q, { type: "websearch", config: "english" });
   }
 
   if (quickFilters.includes("has_voicemail")) {
@@ -315,18 +310,52 @@ export function useGlobalSearch(
       const q = query.trim();
       const qf = quickFilters;
 
-      const runTask =
-        category === "all" || category === "tasks";
-      const runEmail =
-        category === "all" || category === "emails";
-      const runContact =
-        category === "all" || category === "contacts";
-      const runMessage =
-        category === "all" || category === "messages";
-      const runCall =
-        category === "all" || category === "calls";
-      const runVoicemail =
-        category === "all" || category === "voicemails";
+      // Use ranked cross-type RPC for "all" text searches with no quick filters
+      if (category === "all" && q && qf.length === 0) {
+        const { data, error } = await supabase.rpc("search_workspace", {
+          p_query: q,
+          p_limit: 8,
+        });
+        if (error) throw error;
+
+        const NAVIGATE: Record<string, string> = {
+          task: "/tasks",
+          email: "/mail",
+          message: "/chat",
+          voicemail: "/phone",
+        };
+
+        const all: SearchResult[] = (data ?? []).map(
+          (r: { result_type: string; result_id: string; title: string; subtitle: string | null; rank: number }) => ({
+            type: r.result_type as SearchResult["type"],
+            id: r.result_id,
+            title: r.title ?? "",
+            subtitle: r.subtitle ?? undefined,
+            navigateTo: r.result_type === "contact"
+              ? `/contacts/${r.result_id}`
+              : NAVIGATE[r.result_type] ?? "/",
+          })
+        );
+
+        const byType = (t: string) => all.filter((r) => r.type === t);
+        return {
+          tasks: byType("task"),
+          emails: byType("email"),
+          contacts: byType("contact"),
+          messages: byType("message"),
+          calls: byType("call"),
+          voicemails: byType("voicemail"),
+          all,
+          total: all.length,
+        };
+      }
+
+      const runTask = category === "all" || category === "tasks";
+      const runEmail = category === "all" || category === "emails";
+      const runContact = category === "all" || category === "contacts";
+      const runMessage = category === "all" || category === "messages";
+      const runCall = category === "all" || category === "calls";
+      const runVoicemail = category === "all" || category === "voicemails";
 
       // Quick-filter-only shortcuts
       const onlyVoicemails = qf.includes("has_voicemail") && category === "all";
