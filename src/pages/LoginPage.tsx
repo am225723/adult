@@ -105,11 +105,18 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8 animate-fade-in">
         {/* Logo / wordmark */}
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Adulting
-          </h1>
-          <p className="text-sm text-muted-foreground">{title}</p>
+        <div className="space-y-3">
+          <img
+            src="/logo.svg"
+            alt="Integrative Psychiatry"
+            className="w-14 h-14 rounded-full"
+          />
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Adulting
+            </h1>
+            <p className="text-sm text-muted-foreground">{title}</p>
+          </div>
         </div>
 
         {mode === "forgot" && resetSent ? (
