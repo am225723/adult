@@ -121,7 +121,7 @@ export function AppLayout() {
                 className="w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 hover:opacity-80 transition-opacity overflow-hidden"
                 title={selectedWorkspace?.name ?? "Switch workspace"}
               >
-                <img src="/logo.svg" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
+                <img src="/whitelogo.png" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="start" className="w-52">
@@ -149,7 +149,7 @@ export function AppLayout() {
             className="w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 overflow-hidden"
             title={selectedWorkspace?.name}
           >
-            <img src="/logo.svg" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
+            <img src="/whitelogo.png" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
           </div>
         )}
 

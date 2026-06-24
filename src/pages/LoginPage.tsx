@@ -107,7 +107,7 @@ export function LoginPage() {
         {/* Logo / wordmark */}
         <div className="space-y-3">
           <img
-            src="/logo.svg"
+            src="/whitelogo.png"
             alt="Integrative Psychiatry"
             className="w-14 h-14 rounded-full"
           />
