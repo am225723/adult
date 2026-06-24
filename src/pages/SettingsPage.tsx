@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/theme-provider";
 import { toast } from "@/hooks/useToast";
-import { useCalendarAccount } from "@/hooks/useCalendarAccount";
-import { useGmailAccount } from "@/hooks/useGmailAccount";
+import { useCalendarAccount, useInvalidateCalendarAccount } from "@/hooks/useCalendarAccount";
+import { useGmailAccount, useInvalidateGmailAccount } from "@/hooks/useGmailAccount";
 import { supabase } from "@/lib/supabase";
 import {
   useNotificationPreferences,
@@ -82,6 +82,45 @@ export function SettingsPage() {
   const updateCalendarSelection = useUpdateCalendarSelection();
   const refreshLabels = useRefreshLabels();
   const updateLabelSelection = useUpdateLabelSelection();
+
+  const invalidateCalendar = useInvalidateCalendarAccount();
+  const invalidateGmail = useInvalidateGmailAccount();
+  const [disconnectingCalendar, setDisconnectingCalendar] = useState(false);
+  const [disconnectingGmail, setDisconnectingGmail] = useState(false);
+
+  async function handleDisconnectCalendar() {
+    if (!calendarAccount) return;
+    setDisconnectingCalendar(true);
+    const { error } = await supabase
+      .from("admin_calendar_accounts")
+      .delete()
+      .eq("id", calendarAccount.id);
+    setDisconnectingCalendar(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Disconnect failed", description: error.message });
+    } else {
+      setCalendarExpanded(false);
+      invalidateCalendar();
+      toast({ title: "Google Calendar disconnected" });
+    }
+  }
+
+  async function handleDisconnectGmail() {
+    if (!gmailAccount) return;
+    setDisconnectingGmail(true);
+    const { error } = await supabase
+      .from("admin_gmail_accounts")
+      .delete()
+      .eq("id", gmailAccount.id);
+    setDisconnectingGmail(false);
+    if (error) {
+      toast({ variant: "destructive", title: "Disconnect failed", description: error.message });
+    } else {
+      setGmailExpanded(false);
+      invalidateGmail();
+      toast({ title: "Gmail disconnected" });
+    }
+  }
 
   function handleCalendarToggle(calId: string, checked: boolean) {
     if (!calendarAccount) return;
@@ -244,6 +283,19 @@ export function SettingsPage() {
                 })}
               </div>
             )}
+
+            <div className="pt-2 border-t border-border">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full justify-start"
+                onClick={handleDisconnectCalendar}
+                disabled={disconnectingCalendar}
+              >
+                <Unplug size={13} className="mr-1.5" />
+                {disconnectingCalendar ? "Disconnecting…" : "Disconnect Google Calendar"}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -314,6 +366,19 @@ export function SettingsPage() {
                 })}
               </div>
             )}
+
+            <div className="pt-2 border-t border-border">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full justify-start"
+                onClick={handleDisconnectGmail}
+                disabled={disconnectingGmail}
+              >
+                <Unplug size={13} className="mr-1.5" />
+                {disconnectingGmail ? "Disconnecting…" : "Disconnect Gmail"}
+              </Button>
+            </div>
           </div>
         )}
 
