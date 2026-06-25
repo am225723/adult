@@ -44,6 +44,25 @@ async function getWorkspaceId(userId: string): Promise<string | null> {
   return data?.workspace_id ?? null;
 }
 
+/** Resolve a batch of E.164 phone numbers to contact IDs within the workspace. */
+async function resolveContacts(
+  workspaceId: string,
+  phones: string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(phones.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const { data } = await db
+    .from("admin_contacts")
+    .select("id, primary_phone")
+    .eq("workspace_id", workspaceId)
+    .in("primary_phone", unique);
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    if (row.primary_phone) map.set(row.primary_phone, row.id);
+  }
+  return map;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -98,26 +117,37 @@ Deno.serve(async (req: Request) => {
     let totalCalls = 0;
 
     for (const pn of phoneNumbers) {
-      // 2. Upsert phone account
-      await db.from("admin_phone_accounts").upsert(
-        {
-          workspace_id: workspaceId,
-          quo_account_id: pn.id,
-          phone_number: pn.number,
-          last_synced_at: new Date().toISOString(),
-        },
-        { onConflict: "quo_account_id" },
-      );
-
-      // Fetch the internal account ID
-      const { data: acct } = await db
+      // 2. Security: skip phone accounts already claimed by a different workspace
+      const { data: existingAcct } = await db
         .from("admin_phone_accounts")
-        .select("id")
+        .select("id, workspace_id")
         .eq("quo_account_id", pn.id)
         .maybeSingle();
-      const phoneAccountId = acct?.id ?? null;
 
-      // 3. Fetch & upsert messages (most recent 50)
+      if (existingAcct && existingAcct.workspace_id !== workspaceId) {
+        // This OpenPhone number is registered to another workspace — do not overwrite.
+        continue;
+      }
+
+      // 3. Upsert phone account and retrieve its internal ID in one shot
+      const { data: acct, error: acctErr } = await db
+        .from("admin_phone_accounts")
+        .upsert(
+          {
+            workspace_id: workspaceId,
+            quo_account_id: pn.id,
+            phone_number: pn.number,
+            last_synced_at: new Date().toISOString(),
+          },
+          { onConflict: "quo_account_id" },
+        )
+        .select("id")
+        .single();
+
+      if (acctErr) throw acctErr;
+      const phoneAccountId = acct.id as string;
+
+      // 4. Fetch & upsert messages (most recent 50)
       const msgRes = await quoFetch("/messages", {
         phoneNumberId: pn.id,
         maxResults: "50",
@@ -134,25 +164,41 @@ Deno.serve(async (req: Request) => {
         }> = msgData.data ?? [];
 
         if (messages.length > 0) {
-          const rows = messages.map((m) => ({
-            workspace_id: workspaceId,
-            phone_account_id: phoneAccountId,
-            external_id: m.id,
-            direction: m.direction,
-            body: m.body ?? "",
-            is_read: m.direction === "outgoing",
-            occurred_at: m.createdAt,
-          }));
+          // Resolve contact_id from the external party's phone number so ChatPage
+          // can group conversations correctly (instead of everything → "Unknown").
+          const externalPhones = messages.map((m) =>
+            m.direction === "incoming" ? m.from : (m.to?.[0] ?? ""),
+          );
+          const contactMap = await resolveContacts(workspaceId, externalPhones);
 
+          const rows = messages.map((m) => {
+            const externalPhone =
+              m.direction === "incoming" ? m.from : (m.to?.[0] ?? "");
+            return {
+              workspace_id: workspaceId,
+              phone_account_id: phoneAccountId,
+              external_id: m.id,
+              direction: m.direction,
+              body: m.body ?? "",
+              // Only set is_read on new rows; ignoreDuplicates preserves existing read state.
+              is_read: m.direction === "outgoing",
+              occurred_at: m.createdAt,
+              contact_id: contactMap.get(externalPhone) ?? null,
+            };
+          });
+
+          // ignoreDuplicates: true — skip rows that already exist so their
+          // is_read state (potentially marked read by the user) is preserved.
           const { error: upsertErr } = await db
             .from("admin_phone_messages")
-            .upsert(rows, { onConflict: "external_id", ignoreDuplicates: false });
+            .upsert(rows, { onConflict: "external_id", ignoreDuplicates: true });
 
-          if (!upsertErr) totalMessages += messages.length;
+          if (upsertErr) throw upsertErr;
+          totalMessages += messages.length;
         }
       }
 
-      // 4. Fetch & upsert calls (most recent 50)
+      // 5. Fetch & upsert calls (most recent 50)
       const callRes = await quoFetch("/calls", {
         phoneNumberId: pn.id,
         maxResults: "50",
@@ -161,6 +207,8 @@ Deno.serve(async (req: Request) => {
         const callData = await callRes.json();
         const calls: Array<{
           id: string;
+          from: string;
+          to: string;
           direction: string;
           status: string;
           duration: number;
@@ -169,23 +217,33 @@ Deno.serve(async (req: Request) => {
         }> = callData.data ?? [];
 
         if (calls.length > 0) {
-          const rows = calls.map((c) => ({
-            workspace_id: workspaceId,
-            phone_account_id: phoneAccountId,
-            external_id: c.id,
-            direction: c.direction,
-            status: c.status,
-            duration_seconds: c.duration ?? null,
-            voicemail_transcript: c.recording?.transcript ?? null,
-            voicemail_url: c.recording?.url ?? null,
-            occurred_at: c.createdAt,
-          }));
+          const externalPhones = calls.map((c) =>
+            c.direction === "incoming" ? c.from : c.to,
+          );
+          const contactMap = await resolveContacts(workspaceId, externalPhones);
+
+          const rows = calls.map((c) => {
+            const externalPhone = c.direction === "incoming" ? c.from : c.to;
+            return {
+              workspace_id: workspaceId,
+              phone_account_id: phoneAccountId,
+              external_id: c.id,
+              direction: c.direction,
+              status: c.status,
+              duration_seconds: c.duration ?? null,
+              voicemail_transcript: c.recording?.transcript ?? null,
+              voicemail_url: c.recording?.url ?? null,
+              occurred_at: c.createdAt,
+              contact_id: contactMap.get(externalPhone) ?? null,
+            };
+          });
 
           const { error: upsertErr } = await db
             .from("admin_phone_calls")
-            .upsert(rows, { onConflict: "external_id", ignoreDuplicates: false });
+            .upsert(rows, { onConflict: "external_id", ignoreDuplicates: true });
 
-          if (!upsertErr) totalCalls += calls.length;
+          if (upsertErr) throw upsertErr;
+          totalCalls += calls.length;
         }
       }
     }
