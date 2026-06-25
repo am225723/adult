@@ -1,208 +1,388 @@
 /**
- * PatientQ API Adapter - Supabase Edge Function
+ * IntakeQ API Adapter — Supabase Edge Function
  *
- * This function acts as a secure server-side proxy to the PatientQ API.
- * API keys never leave the server.
+ * Secure server-side proxy to the IntakeQ REST API (https://intakeq.com/api/v1/).
+ * The INTAKEQ_API_KEY never reaches the browser.
  *
- * Required environment variables (set in Supabase Dashboard → Edge Functions → Secrets):
- *   PATIENTQ_API_KEY   - Your PatientQ API key
- *   PATIENTQ_API_BASE  - PatientQ API base URL (e.g. https://api.patientq.com/v1)
+ * Required Supabase secret:
+ *   INTAKEQ_API_KEY  — Found at More > Settings > Integrations > Developer API
  *
- * Actions supported via POST body:
- *   { action: "getAppointmentTypes" }
- *   { action: "searchPatient", email?, phone? }
- *   { action: "createPatient", name, email, phone, address? }
- *   { action: "createAppointment", patientId, appointmentTypeId, date, time, format, providerId?, notes? }
+ * Rate limits: 10 req/min, 500/day on standard plan.
+ *
+ * Supported actions (POST body { action, ...params }):
+ *   getBookingSettings
+ *   searchClient      { search }
+ *   createOrUpdateClient { firstName, lastName, email, phone, ... }
+ *   getAppointments   { client?, startDate?, endDate?, status?, practitionerEmail? }
+ *   createAppointment { clientId, serviceId, locationId, practitionerId, utcDateTime, ... }
+ *   cancelAppointment { appointmentId, reason? }
  */
 
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const PATIENTQ_API_KEY = Deno.env.get("PATIENTQ_API_KEY") ?? "";
-const PATIENTQ_API_BASE = Deno.env.get("PATIENTQ_API_BASE") ?? "https://api.patientq.com/v1";
+const INTAKEQ_API_KEY = Deno.env.get("INTAKEQ_API_KEY") ?? "";
+const INTAKEQ_BASE = "https://intakeq.com/api/v1";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── HTTP helper ───────────────────────────────────────────────────────────────
 
-async function patientqFetch(path: string, options: RequestInit = {}) {
-  if (!PATIENTQ_API_KEY) {
-    throw new Error("PatientQ API key not configured. Set PATIENTQ_API_KEY in Supabase secrets.");
+class IntakeQError extends Error {
+  constructor(message: string, public readonly status = 500) {
+    super(message);
+    this.name = "IntakeQError";
   }
-  const url = `${PATIENTQ_API_BASE}${path}`;
-  const res = await fetch(url, {
+}
+
+function requireString(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new IntakeQError(`Missing required field: ${field}`, 400);
+  }
+  return value.trim();
+}
+
+function requireNumber(value: unknown, field: string): number {
+  if (typeof value !== "number" || !isFinite(value)) {
+    throw new IntakeQError(`Missing or invalid numeric field: ${field}`, 400);
+  }
+  return value;
+}
+
+async function iq(path: string, options: RequestInit = {}) {
+  if (!INTAKEQ_API_KEY) {
+    throw new IntakeQError(
+      "IntakeQ API key not configured. Set INTAKEQ_API_KEY in Supabase Edge Function secrets.",
+      503,
+    );
+  }
+  const res = await fetch(`${INTAKEQ_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${PATIENTQ_API_KEY}`,
+      "X-Auth-Key": INTAKEQ_API_KEY,
       ...(options.headers ?? {}),
     },
   });
-  const body = await res.text();
-  if (!res.ok) {
-    throw new Error(`PatientQ API error ${res.status}: ${body}`);
-  }
-  return JSON.parse(body);
+  const text = await res.text();
+  if (res.status === 401) throw new IntakeQError("IntakeQ API key is invalid or expired.", 401);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new IntakeQError(`IntakeQ error ${res.status}: ${text}`, res.status);
+  return text ? JSON.parse(text) : null;
 }
 
-// ── PatientQ API methods ──────────────────────────────────────────────────────
+// ── IntakeQ types ─────────────────────────────────────────────────────────────
 
-async function getAppointmentTypes() {
-  // TODO: Replace with actual PatientQ endpoint when available
-  // return await patientqFetch("/appointment-types");
-  //
-  // Fallback: return centralized config if API not available
-  return FALLBACK_APPOINTMENT_TYPES;
+interface IntakeQClient {
+  ClientId: number;
+  Name: string;
+  FirstName: string;
+  LastName: string;
+  MiddleName?: string;
+  Email: string;
+  Phone: string;
+  MobilePhone?: string;
+  Address?: string;
+  StreetAddress?: string;
+  City?: string;
+  StateShort?: string;
+  PostalCode?: string;
+  Country?: string;
+  DateOfBirth?: number;
+  Tags?: string[];
+  ExternalClientId?: string;
 }
 
-async function searchPatient({ email, phone }: { email?: string; phone?: string }) {
-  // TODO: Replace with actual PatientQ search endpoint
-  // Example: GET /patients?email=...&phone=...
-  // const params = new URLSearchParams();
-  // if (email) params.set("email", email);
-  // if (phone) params.set("phone", phone);
-  // return await patientqFetch(`/patients?${params}`);
-
-  // Stub: return null (patient not found) for now
-  return { patients: [] };
+interface IntakeQService {
+  Id: string;
+  Name: string;
+  Duration: number;
+  Price?: number;
 }
 
-async function createPatient(payload: {
-  name: string;
+interface IntakeQLocation {
+  Id: string;
+  Name: string;
+  Address?: string;
+}
+
+interface IntakeQPractitioner {
+  Id: string;
+  CompleteName: string;
+  FirstName: string;
+  LastName: string;
+  Email: string;
+}
+
+interface IntakeQAppointment {
+  Id: string;
+  ClientId: number;
+  ClientName: string;
+  ClientEmail: string;
+  ClientPhone: string;
+  ServiceId: string;
+  ServiceName: string;
+  LocationId: string;
+  LocationName: string;
+  PractitionerId: string;
+  PractitionerName: string;
+  Status: string;
+  StartDate: number;
+  EndDate: number;
+  Duration: number;
+  StartDateIso?: string;
+  EndDateIso?: string;
+  StartDateLocalFormatted?: string;
+  DateCreated: number;
+}
+
+// ── Action implementations ────────────────────────────────────────────────────
+
+async function getBookingSettings(): Promise<{
+  Services: IntakeQService[];
+  Locations: IntakeQLocation[];
+  Practitioners: IntakeQPractitioner[];
+}> {
+  const data = await iq("/appointments/settings");
+  return data ?? { Services: [], Locations: [], Practitioners: [] };
+}
+
+async function searchClient(search: string): Promise<IntakeQClient[]> {
+  requireString(search, "search");
+  const qs = new URLSearchParams({ search, includeProfile: "true" });
+  const data = await iq(`/clients?${qs}`);
+  return (data ?? []) as IntakeQClient[];
+}
+
+async function createOrUpdateClient(payload: {
+  clientId?: number;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
-  address?: string;
+  streetAddress?: string;
+  city?: string;
+  stateShort?: string;
+  postalCode?: string;
+  country?: string;
 }) {
-  // TODO: Replace with actual PatientQ create patient endpoint
-  // return await patientqFetch("/patients", {
-  //   method: "POST",
-  //   body: JSON.stringify(payload),
-  // });
+  requireString(payload.firstName, "firstName");
+  requireString(payload.lastName, "lastName");
+  requireString(payload.email, "email");
+  requireString(payload.phone, "phone");
 
-  // Stub: return a mock patient ID
-  return {
-    id: `pq_patient_stub_${Date.now()}`,
-    name: payload.name,
-    email: payload.email,
-    phone: payload.phone,
-    _stub: true,
+  const body: Record<string, unknown> = {
+    FirstName: payload.firstName,
+    LastName: payload.lastName,
+    Email: payload.email,
+    Phone: payload.phone,
   };
+  if (payload.clientId) body.ClientId = payload.clientId;
+  if (payload.streetAddress) body.StreetAddress = payload.streetAddress;
+  if (payload.city) body.City = payload.city;
+  if (payload.stateShort) body.StateShort = payload.stateShort;
+  if (payload.postalCode) body.PostalCode = payload.postalCode;
+  if (payload.country) body.Country = payload.country;
+
+  const data = await iq("/clients", { method: "POST", body: JSON.stringify(body) });
+  return data as IntakeQClient;
+}
+
+async function getAppointments(params: {
+  client?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  practitionerEmail?: string;
+}): Promise<IntakeQAppointment[]> {
+  const qs = new URLSearchParams();
+  if (params.client) qs.set("client", params.client);
+  if (params.startDate) qs.set("startDate", params.startDate);
+  if (params.endDate) qs.set("endDate", params.endDate);
+  if (params.status) qs.set("status", params.status);
+  if (params.practitionerEmail) qs.set("practitionerEmail", params.practitionerEmail);
+  const data = await iq(`/appointments?${qs}`);
+  return (data ?? []) as IntakeQAppointment[];
 }
 
 async function createAppointment(payload: {
-  patientId: string;
-  appointmentTypeId: string;
-  date: string;
-  time: string;
-  format: string;
-  providerId?: string;
-  notes?: string;
-}) {
-  // TODO: Replace with actual PatientQ create appointment endpoint
-  // return await patientqFetch("/appointments", {
-  //   method: "POST",
-  //   body: JSON.stringify(payload),
-  // });
+  clientId: number;
+  serviceId: string;
+  locationId: string;
+  practitionerId: string;
+  utcDateTime: number;
+  status?: "Confirmed" | "WaitingConfirmation";
+  sendEmailNotification?: boolean;
+  reminderType?: "Sms" | "Email" | "Voice" | "OptOut";
+  clientNote?: string;
+}): Promise<IntakeQAppointment> {
+  requireNumber(payload.clientId, "clientId");
+  requireString(payload.serviceId, "serviceId");
+  requireString(payload.locationId, "locationId");
+  requireString(payload.practitionerId, "practitionerId");
+  requireNumber(payload.utcDateTime, "utcDateTime");
 
-  // Stub: return a mock appointment ID
-  return {
-    id: `pq_appt_stub_${Date.now()}`,
-    patientId: payload.patientId,
-    appointmentTypeId: payload.appointmentTypeId,
-    date: payload.date,
-    time: payload.time,
-    format: payload.format,
-    status: "scheduled",
-    _stub: true,
+  const status = payload.status ?? "Confirmed";
+  const body = {
+    ClientId: payload.clientId,
+    ServiceId: payload.serviceId,
+    LocationId: payload.locationId,
+    PractitionerId: payload.practitionerId,
+    UtcDateTime: payload.utcDateTime,
+    Status: status,
+    SendClientEmailNotification: status === "Confirmed" ? (payload.sendEmailNotification ?? true) : false,
+    ReminderType: payload.reminderType ?? "Email",
+    ...(payload.clientNote ? { ClientNote: payload.clientNote } : {}),
   };
+  const data = await iq("/appointments", { method: "POST", body: JSON.stringify(body) });
+  return data as IntakeQAppointment;
 }
 
-// ── Fallback appointment types (used when PatientQ API is not yet configured) ─
+async function cancelAppointment(appointmentId: string, reason?: string): Promise<IntakeQAppointment> {
+  requireString(appointmentId, "appointmentId");
+  const body: Record<string, string> = { AppointmentId: appointmentId };
+  if (reason) body.Reason = reason;
+  const data = await iq("/appointments/cancellation", { method: "POST", body: JSON.stringify(body) });
+  return data as IntakeQAppointment;
+}
 
-const FALLBACK_APPOINTMENT_TYPES = [
-  { id: "initial_eval", label: "Initial Evaluation", duration: 60, formats: ["in-person", "telehealth"] },
-  { id: "follow_up_30", label: "Follow-Up (30 min)", duration: 30, formats: ["in-person", "telehealth", "phone"] },
-  { id: "follow_up_60", label: "Follow-Up (60 min)", duration: 60, formats: ["in-person", "telehealth"] },
-  { id: "med_mgmt", label: "Medication Management", duration: 20, formats: ["in-person", "telehealth", "phone"] },
-  { id: "crisis", label: "Crisis Intervention", duration: 60, formats: ["in-person", "telehealth", "phone"] },
-  { id: "group", label: "Group Session", duration: 90, formats: ["in-person", "telehealth"] },
-  { id: "consult", label: "Consultation", duration: 30, formats: ["in-person", "telehealth", "phone"] },
-];
+// ── Auth + workspace helper ───────────────────────────────────────────────────
 
-// ── Auth helper ───────────────────────────────────────────────────────────────
-
-async function getAuthenticatedUser(req: Request) {
+async function requireAuthAndWorkspace(req: Request) {
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) throw new Error("Missing Authorization header");
+  if (!authHeader) throw new IntakeQError("Missing Authorization header", 401);
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-  const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) throw new Error("Unauthorized");
-  return user;
+
+  const { data: { user }, error } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+  if (error || !user) throw new IntakeQError("Unauthorized", 401);
+
+  // Verify the user belongs to at least one workspace
+  const { data: membership, error: wsError } = await supabase
+    .from("admin_workspace_members")
+    .select("workspace_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (wsError || !membership) throw new IntakeQError("No workspace membership found", 403);
+
+  return { user, supabase, workspaceId: membership.workspace_id as string };
+}
+
+async function writeAuditLog(
+  supabase: ReturnType<typeof createClient>,
+  workspaceId: string,
+  userId: string,
+  action: string,
+  metadata?: Record<string, unknown>,
+) {
+  const { error } = await supabase.from("audit_logs").insert({
+    workspace_id: workspaceId,
+    user_id: userId,
+    action,
+    resource_type: "intakeq_appointment",
+    metadata,
+  });
+  if (error) {
+    console.error("[audit_log] Failed to write entry:", action, error.message);
+  }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    await getAuthenticatedUser(req);
-
+    const { user, supabase, workspaceId } = await requireAuthAndWorkspace(req);
     const body = await req.json();
     const { action } = body;
-
     let result: unknown;
 
     switch (action) {
-      case "getAppointmentTypes":
-        result = await getAppointmentTypes();
+      case "getBookingSettings":
+        result = await getBookingSettings();
         break;
-      case "searchPatient":
-        result = await searchPatient({ email: body.email, phone: body.phone });
+      case "searchClient":
+        result = await searchClient(body.search);
         break;
-      case "createPatient":
-        result = await createPatient({
-          name: body.name,
+      case "createOrUpdateClient":
+        result = await createOrUpdateClient({
+          clientId: body.clientId,
+          firstName: body.firstName,
+          lastName: body.lastName,
           email: body.email,
           phone: body.phone,
-          address: body.address,
+          streetAddress: body.streetAddress,
+          city: body.city,
+          stateShort: body.stateShort,
+          postalCode: body.postalCode,
+          country: body.country,
         });
         break;
-      case "createAppointment":
+      case "getAppointments":
+        result = await getAppointments({
+          client: body.client,
+          startDate: body.startDate,
+          endDate: body.endDate,
+          status: body.status,
+          practitionerEmail: body.practitionerEmail,
+        });
+        break;
+      case "createAppointment": {
         result = await createAppointment({
-          patientId: body.patientId,
-          appointmentTypeId: body.appointmentTypeId,
-          date: body.date,
-          time: body.time,
-          format: body.format,
-          providerId: body.providerId,
-          notes: body.notes,
+          clientId: body.clientId,
+          serviceId: body.serviceId,
+          locationId: body.locationId,
+          practitionerId: body.practitionerId,
+          utcDateTime: body.utcDateTime,
+          status: body.status,
+          sendEmailNotification: body.sendEmailNotification,
+          reminderType: body.reminderType,
+          clientNote: body.clientNote,
+        });
+        const appt = result as IntakeQAppointment;
+        await writeAuditLog(supabase, workspaceId, user.id, "intakeq_appointment_created", {
+          appointmentId: appt.Id,
+          clientId: appt.ClientId,
+          serviceId: appt.ServiceId,
+          startDate: appt.StartDate,
+          status: appt.Status,
         });
         break;
-      default:
-        return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+      case "cancelAppointment": {
+        result = await cancelAppointment(body.appointmentId, body.reason);
+        const appt = result as IntakeQAppointment;
+        await writeAuditLog(supabase, workspaceId, user.id, "intakeq_appointment_cancelled", {
+          appointmentId: appt.Id,
+          reason: body.reason,
         });
+        break;
+      }
+      default:
+        return new Response(
+          JSON.stringify({ error: `Unknown action: ${action}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
     }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    // Never expose internal details in production
-    const isAuthError = message.includes("Unauthorized") || message.includes("Authorization");
-    return new Response(
-      JSON.stringify({ error: isAuthError ? "Unauthorized" : "An error occurred. Please try again." }),
-      {
-        status: isAuthError ? 401 : 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    const e = err instanceof IntakeQError ? err : new IntakeQError("An error occurred", 500);
+    const clientMessage =
+      e.status === 400 ? e.message :
+      e.status === 401 ? "Unauthorized" :
+      e.status === 403 ? "Forbidden" :
+      e.status === 503 ? "IntakeQ is not configured. Contact your administrator." :
+      "An error occurred. Please try again.";
+    return new Response(JSON.stringify({ error: clientMessage }), {
+      status: e.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

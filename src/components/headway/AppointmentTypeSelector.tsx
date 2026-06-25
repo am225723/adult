@@ -1,20 +1,23 @@
 import { useState } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FORMAT_LABELS, FALLBACK_APPOINTMENT_TYPES, type AppointmentType, type AppointmentFormat } from "@/config/appointmentTypes";
-import type { PatientQAppointmentType } from "@/lib/patientqClient";
+import type { IntakeQService, IntakeQLocation, IntakeQPractitioner } from "@/lib/patientqClient";
 
 export interface AppointmentSelection {
-  appointmentTypeId: string;
-  format: AppointmentFormat;
-  date?: string;
-  time?: string;
-  providerId?: string;
-  notes?: string;
+  serviceId: string;
+  locationId: string;
+  practitionerId: string;
+  utcDateTime: number; // Unix ms — required by IntakeQ
+  date: string;        // local ISO date for display
+  time: string;        // local time for display
+  reminderType: "Sms" | "Email" | "Voice" | "OptOut";
+  clientNote?: string;
 }
 
 interface AppointmentTypeSelectorProps {
-  appointmentTypes: PatientQAppointmentType[];
+  services: IntakeQService[];
+  locations: IntakeQLocation[];
+  practitioners: IntakeQPractitioner[];
   isLoading: boolean;
   initialDate?: string;
   initialTime?: string;
@@ -22,99 +25,146 @@ interface AppointmentTypeSelectorProps {
 }
 
 export function AppointmentTypeSelector({
-  appointmentTypes,
+  services,
+  locations,
+  practitioners,
   isLoading,
   initialDate = "",
   initialTime = "",
   onSelect,
 }: AppointmentTypeSelectorProps) {
-  const types: AppointmentType[] =
-    appointmentTypes.length > 0 ? appointmentTypes : FALLBACK_APPOINTMENT_TYPES;
-
-  const [selectedTypeId, setSelectedTypeId] = useState("");
-  const [format, setFormat] = useState<AppointmentFormat>("telehealth");
+  const [serviceId, setServiceId] = useState("");
+  const [locationId, setLocationId] = useState(locations[0]?.Id ?? "");
+  const [practitionerId, setPractitionerId] = useState(practitioners[0]?.Id ?? "");
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime);
-  const [notes, setNotes] = useState("");
+  const [reminderType, setReminderType] = useState<AppointmentSelection["reminderType"]>("Email");
+  const [clientNote, setClientNote] = useState("");
 
-  const selectedType = types.find((t) => t.id === selectedTypeId);
-  const availableFormats = selectedType?.formats ?? (["in-person", "telehealth", "phone"] as AppointmentFormat[]);
+  const selectedService = services.find((s) => s.Id === serviceId);
+
+  function buildUtcDateTime(): number | null {
+    if (!date || !time) return null;
+    // Parse the local date+time the user entered as a local datetime, then convert to UTC ms
+    const localIso = `${date}T${time}:00`;
+    const ms = new Date(localIso).getTime();
+    return isNaN(ms) ? null : ms;
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedTypeId) return;
-    onSelect({ appointmentTypeId: selectedTypeId, format, date, time, notes: notes || undefined });
+    if (!serviceId || !locationId || !practitionerId) return;
+    const utcDateTime = buildUtcDateTime();
+    if (!utcDateTime) return;
+    onSelect({
+      serviceId,
+      locationId,
+      practitionerId,
+      utcDateTime,
+      date,
+      time,
+      reminderType,
+      clientNote: clientNote || undefined,
+    });
   }
+
+  const canSubmit = !!serviceId && !!locationId && !!practitionerId && !!date && !!time;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-1">Appointment Type</h3>
-        <p className="text-xs text-muted-foreground">Select the type of appointment to schedule in PatientQ.</p>
+        <p className="text-xs text-muted-foreground">Select the service, location, and provider for this appointment in IntakeQ.</p>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 size={18} className="animate-spin text-muted-foreground" />
+          <span className="ml-2 text-xs text-muted-foreground">Loading from IntakeQ…</span>
         </div>
       ) : (
-        <div className="space-y-2">
-          {types.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => {
-                setSelectedTypeId(t.id);
-                if (!t.formats.includes(format)) setFormat(t.formats[0]);
-              }}
-              className={cn(
-                "w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors",
-                selectedTypeId === t.id
-                  ? "border-primary bg-primary/5 dark:bg-primary/10"
-                  : "border-border hover:border-primary/50 hover:bg-muted/40",
-              )}
-            >
-              <div>
-                <p className="text-sm font-medium text-foreground">{t.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{t.duration} min</p>
-              </div>
-              <div className={cn(
-                "h-4 w-4 rounded-full border-2 shrink-0 transition-colors",
-                selectedTypeId === t.id ? "border-primary bg-primary" : "border-muted-foreground",
-              )} />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {selectedTypeId && (
         <>
-          {/* Format */}
+          {/* Service */}
           <div>
-            <label className="block text-xs font-medium text-foreground mb-2">Format</label>
-            <div className="flex flex-wrap gap-2">
-              {availableFormats.map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFormat(f)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
-                    format === f
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {FORMAT_LABELS[f]}
-                </button>
-              ))}
-            </div>
+            <label className="block text-xs font-medium text-foreground mb-2">
+              Service <span className="text-destructive">*</span>
+            </label>
+            {services.length === 0 ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400">No services found in IntakeQ. Check your API key and account setup.</p>
+            ) : (
+              <div className="space-y-2">
+                {services.map((s) => (
+                  <button
+                    key={s.Id}
+                    type="button"
+                    onClick={() => setServiceId(s.Id)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors",
+                      serviceId === s.Id
+                        ? "border-primary bg-primary/5 dark:bg-primary/10"
+                        : "border-border hover:border-primary/50 hover:bg-muted/40",
+                    )}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{s.Name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {s.Duration} min{s.Price != null ? ` · $${s.Price}` : ""}
+                      </p>
+                    </div>
+                    <div className={cn(
+                      "h-4 w-4 rounded-full border-2 shrink-0",
+                      serviceId === s.Id ? "border-primary bg-primary" : "border-muted-foreground",
+                    )} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Location */}
+          {locations.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Location <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">Select location…</option>
+                {locations.map((l) => (
+                  <option key={l.Id} value={l.Id}>{l.Name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Practitioner */}
+          {practitioners.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Provider <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={practitionerId}
+                onChange={(e) => setPractitionerId(e.target.value)}
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">Select provider…</option>
+                {practitioners.map((p) => (
+                  <option key={p.Id} value={p.Id}>{p.CompleteName}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Date / Time */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-foreground mb-1.5">Date</label>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Date <span className="text-destructive">*</span>
+              </label>
               <input
                 type="date"
                 value={date}
@@ -123,7 +173,9 @@ export function AppointmentTypeSelector({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-foreground mb-1.5">Time</label>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Time <span className="text-destructive">*</span>
+              </label>
               <input
                 type="time"
                 value={time}
@@ -133,14 +185,38 @@ export function AppointmentTypeSelector({
             </div>
           </div>
 
-          {/* Notes */}
+          {/* Reminder type */}
           <div>
-            <label className="block text-xs font-medium text-foreground mb-1.5">Internal notes (optional)</label>
+            <label className="block text-xs font-medium text-foreground mb-2">Reminder</label>
+            <div className="flex flex-wrap gap-2">
+              {(["Email", "Sms", "Voice", "OptOut"] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setReminderType(r)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+                    reminderType === r
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {r === "OptOut" ? "No reminder" : r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Client note */}
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1.5">
+              Note for client (optional)
+            </label>
             <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Any notes for this appointment…"
+              value={clientNote}
+              onChange={(e) => setClientNote(e.target.value)}
+              rows={2}
+              placeholder="Any note to include with the appointment…"
               className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
             />
           </div>
@@ -149,7 +225,7 @@ export function AppointmentTypeSelector({
 
       <button
         type="submit"
-        disabled={!selectedTypeId}
+        disabled={!canSubmit || isLoading}
         className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Review & Confirm

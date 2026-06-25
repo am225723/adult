@@ -20,7 +20,7 @@ export function AppointmentSuccess({ clientData, apptSelection, result, onClose 
       <div>
         <h3 className="text-base font-semibold text-foreground">Appointment Created</h3>
         <p className="text-xs text-muted-foreground mt-1">
-          The appointment has been scheduled in PatientQ and the contact has been saved.
+          The appointment has been scheduled in IntakeQ and the contact has been saved.
         </p>
       </div>
 
@@ -31,14 +31,14 @@ export function AppointmentSuccess({ clientData, apptSelection, result, onClose 
             <User size={13} className="text-muted-foreground" />
             <span className="text-xs font-semibold text-foreground">Patient</span>
           </div>
-          <Row label="Name" value={clientData.fullName} />
-          <Row label="Email" value={clientData.email} />
-          <Row label="Phone" value={clientData.phone} />
-          {result?.wasExistingPatient && (
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">Matched existing PatientQ patient</p>
+          <Row label="Name" value={result?.client.Name ?? clientData.fullName} />
+          <Row label="Email" value={result?.client.Email ?? clientData.email} />
+          <Row label="Phone" value={result?.client.Phone ?? clientData.phone} />
+          {result?.wasExistingClient && (
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">Matched existing IntakeQ client</p>
           )}
-          {result?.patient?.id && (
-            <Row label="PatientQ ID" value={result.patient.id} mono />
+          {result?.client.ClientId != null && (
+            <Row label="IntakeQ ID" value={String(result.client.ClientId)} mono />
           )}
         </div>
 
@@ -48,16 +48,13 @@ export function AppointmentSuccess({ clientData, apptSelection, result, onClose 
             <Calendar size={13} className="text-muted-foreground" />
             <span className="text-xs font-semibold text-foreground">Appointment</span>
           </div>
-          <Row label="Date" value={clientData.appointmentDate || apptSelection?.date} />
-          <Row label="Time" value={clientData.appointmentTime || apptSelection?.time} />
-          <Row label="Format" value={apptSelection?.format} />
-          {result?.appointment?.id && (
-            <Row label="Appt ID" value={result.appointment.id} mono />
-          )}
-          {result?.appointment?._stub && (
-            <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
-              ⚠ PatientQ stub mode — configure PATIENTQ_API_KEY to create real appointments
-            </p>
+          <Row label="Service" value={result?.appointment.ServiceName} />
+          <Row label="Provider" value={result?.appointment.PractitionerName} />
+          <Row label="Date" value={result?.appointment.StartDateLocalFormatted ?? apptSelection?.date} />
+          <Row label="Time" value={apptSelection?.time} />
+          <Row label="Status" value={result?.appointment.Status} />
+          {result?.appointment.Id && (
+            <Row label="Appt ID" value={result.appointment.Id} mono />
           )}
         </div>
 

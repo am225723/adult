@@ -326,7 +326,7 @@ export function ChatPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Headway workflow panel */}
+      {/* Headway workflow panel — z-[60] to sit above mobile conversation overlay (z-50) */}
       <HeadwayWorkflowPanel
         workflow={headwayWorkflow.workflow}
         isOpen={headwayWorkflow.isOpen}

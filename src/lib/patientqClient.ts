@@ -1,12 +1,14 @@
 import { supabase } from "@/lib/supabase";
-import type { AppointmentFormat } from "@/config/appointmentTypes";
 
 async function callEdgeFunction(action: string, payload?: Record<string, unknown>) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) throw new Error("VITE_SUPABASE_URL is not configured");
+
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated");
 
   const res = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/patientq-api`,
+    new URL("/functions/v1/patientq-api", supabaseUrl).toString(),
     {
       method: "POST",
       headers: {
@@ -18,57 +20,119 @@ async function callEdgeFunction(action: string, payload?: Record<string, unknown
   );
 
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? "PatientQ API error");
+  if (!res.ok) throw new Error(json.error ?? "IntakeQ API error");
   return json;
 }
 
-export interface PatientQAppointmentType {
-  id: string;
-  label: string;
-  duration: number;
-  formats: AppointmentFormat[];
+// ── IntakeQ types (mirrors edge function) ────────────────────────────────────
+
+export interface IntakeQService {
+  Id: string;
+  Name: string;
+  Duration: number;
+  Price?: number;
 }
 
-export interface PatientQPatient {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  _stub?: boolean;
+export interface IntakeQLocation {
+  Id: string;
+  Name: string;
+  Address?: string;
 }
 
-export interface PatientQAppointment {
-  id: string;
-  patientId: string;
-  appointmentTypeId: string;
-  date: string;
-  time: string;
-  format: string;
-  status: string;
-  _stub?: boolean;
+export interface IntakeQPractitioner {
+  Id: string;
+  CompleteName: string;
+  FirstName: string;
+  LastName: string;
+  Email: string;
 }
 
-export const patientqClient = {
-  getAppointmentTypes: (): Promise<PatientQAppointmentType[]> =>
-    callEdgeFunction("getAppointmentTypes"),
+export interface IntakeQClient {
+  ClientId: number;
+  Name: string;
+  FirstName: string;
+  LastName: string;
+  Email: string;
+  Phone: string;
+  Address?: string;
+  StreetAddress?: string;
+  City?: string;
+  StateShort?: string;
+  PostalCode?: string;
+  Country?: string;
+}
 
-  searchPatient: (params: { email?: string; phone?: string }): Promise<{ patients: PatientQPatient[] }> =>
-    callEdgeFunction("searchPatient", params),
+export interface IntakeQAppointment {
+  Id: string;
+  ClientId: number;
+  ClientName: string;
+  ClientEmail: string;
+  ClientPhone: string;
+  ServiceId: string;
+  ServiceName: string;
+  LocationId: string;
+  LocationName: string;
+  PractitionerId: string;
+  PractitionerName: string;
+  Status: string;
+  StartDate: number;
+  EndDate: number;
+  Duration: number;
+  StartDateIso?: string;
+  StartDateLocalFormatted?: string;
+}
 
-  createPatient: (payload: {
-    name: string;
+export interface BookingSettings {
+  Services: IntakeQService[];
+  Locations: IntakeQLocation[];
+  Practitioners: IntakeQPractitioner[];
+}
+
+// ── Client ────────────────────────────────────────────────────────────────────
+
+export const intakeqClient = {
+  getBookingSettings: (): Promise<BookingSettings> =>
+    callEdgeFunction("getBookingSettings"),
+
+  searchClient: (search: string): Promise<IntakeQClient[]> =>
+    callEdgeFunction("searchClient", { search }),
+
+  createOrUpdateClient: (payload: {
+    clientId?: number;
+    firstName: string;
+    lastName: string;
     email: string;
     phone: string;
-    address?: string;
-  }): Promise<PatientQPatient> => callEdgeFunction("createPatient", payload),
+    streetAddress?: string;
+    city?: string;
+    stateShort?: string;
+    postalCode?: string;
+    country?: string;
+  }): Promise<IntakeQClient> =>
+    callEdgeFunction("createOrUpdateClient", payload as Record<string, unknown>),
+
+  getAppointments: (params: {
+    client?: string;
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    practitionerEmail?: string;
+  }): Promise<IntakeQAppointment[]> =>
+    callEdgeFunction("getAppointments", params as Record<string, unknown>),
 
   createAppointment: (payload: {
-    patientId: string;
-    appointmentTypeId: string;
-    date: string;
-    time: string;
-    format: AppointmentFormat;
-    providerId?: string;
-    notes?: string;
-  }): Promise<PatientQAppointment> => callEdgeFunction("createAppointment", payload),
+    clientId: number;
+    serviceId: string;
+    locationId: string;
+    practitionerId: string;
+    utcDateTime: number;
+    status?: "Confirmed" | "WaitingConfirmation";
+    sendEmailNotification?: boolean;
+    reminderType?: "Sms" | "Email" | "Voice" | "OptOut";
+    clientNote?: string;
+  }): Promise<IntakeQAppointment> =>
+    callEdgeFunction("createAppointment", payload as Record<string, unknown>),
+
+  cancelAppointment: (appointmentId: string, reason?: string): Promise<IntakeQAppointment> =>
+    callEdgeFunction("cancelAppointment", { appointmentId, reason }),
 };

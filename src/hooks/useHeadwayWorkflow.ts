@@ -56,7 +56,7 @@ async function writeAuditLog(
   resourceId?: string,
   metadata?: Record<string, unknown>,
 ) {
-  await supabase.from("audit_logs").insert({
+  const { error } = await supabase.from("audit_logs").insert({
     workspace_id: workspaceId,
     user_id: userId,
     action,
@@ -64,6 +64,9 @@ async function writeAuditLog(
     resource_id: resourceId,
     metadata,
   });
+  if (error) {
+    console.error("[audit_log] Failed to write audit entry:", action, error.message);
+  }
 }
 
 export function useHeadwayWorkflow() {
@@ -93,32 +96,36 @@ export function useHeadwayWorkflow() {
   }, []);
 
   const saveWorkflow = useMutation({
-    mutationFn: async (updates: Partial<HeadwayWorkflow> & { status: WorkflowStatus }) => {
+    mutationFn: async (
+      updates: Partial<HeadwayWorkflow> & { status: WorkflowStatus; _workflowSnapshot?: HeadwayWorkflow | null },
+    ) => {
       if (!user) throw new Error("Not authenticated");
+      // Capture snapshot at call-time to avoid race with concurrent saves
+      const snap = updates._workflowSnapshot ?? workflow;
       const wsId = await getWorkspaceId(user.id);
 
       const payload = {
         workspace_id: wsId,
         created_by: user.id,
-        quo_message_id: workflow?.quoMessageId ?? updates.quoMessageId,
-        headway_link: workflow?.headwayLink ?? updates.headwayLink,
-        sender_name: workflow?.senderName ?? updates.senderName,
+        quo_message_id: snap?.quoMessageId ?? updates.quoMessageId,
+        headway_link: snap?.headwayLink ?? updates.headwayLink,
+        sender_name: snap?.senderName ?? updates.senderName,
         status: updates.status,
-        client_data: updates.clientData ?? workflow?.clientData,
-        appointment_data: updates.appointmentData ?? workflow?.appointmentData,
-        contact_id: updates.contactId ?? workflow?.contactId,
-        patientq_patient_id: updates.patientqPatientId ?? workflow?.patientqPatientId,
-        patientq_appointment_id: updates.patientqAppointmentId ?? workflow?.patientqAppointmentId,
+        client_data: updates.clientData ?? snap?.clientData,
+        appointment_data: updates.appointmentData ?? snap?.appointmentData,
+        contact_id: updates.contactId ?? snap?.contactId,
+        patientq_patient_id: updates.patientqPatientId ?? snap?.patientqPatientId,
+        patientq_appointment_id: updates.patientqAppointmentId ?? snap?.patientqAppointmentId,
         error_message: updates.errorMessage,
         updated_at: new Date().toISOString(),
       };
 
       let result;
-      if (workflow?.id) {
+      if (snap?.id) {
         const { data, error } = await supabase
           .from("headway_workflows")
           .update(payload)
-          .eq("id", workflow.id)
+          .eq("id", snap.id)
           .select("id")
           .single();
         if (error) throw error;

@@ -1,68 +1,79 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { patientqClient, type PatientQPatient, type PatientQAppointment } from "@/lib/patientqClient";
-import type { AppointmentFormat } from "@/config/appointmentTypes";
+import { intakeqClient, type IntakeQClient, type IntakeQAppointment } from "@/lib/patientqClient";
 
-export function useAppointmentTypes() {
+export function useBookingSettings() {
   return useQuery({
-    queryKey: ["patientq", "appointment-types"],
-    queryFn: () => patientqClient.getAppointmentTypes(),
+    queryKey: ["intakeq", "booking-settings"],
+    queryFn: () => intakeqClient.getBookingSettings(),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 }
 
 export interface AppointmentCreationPayload {
-  patient: {
-    name: string;
+  client: {
+    firstName: string;
+    lastName: string;
     email: string;
     phone: string;
-    address?: string;
+    streetAddress?: string;
+    city?: string;
+    stateShort?: string;
+    postalCode?: string;
+    country?: string;
   };
   appointment: {
-    appointmentTypeId: string;
-    date: string;
-    time: string;
-    format: AppointmentFormat;
-    providerId?: string;
-    notes?: string;
+    serviceId: string;
+    locationId: string;
+    practitionerId: string;
+    utcDateTime: number; // Unix ms
+    status?: "Confirmed" | "WaitingConfirmation";
+    reminderType?: "Sms" | "Email" | "Voice" | "OptOut";
+    clientNote?: string;
   };
 }
 
 export interface AppointmentCreationResult {
-  patient: PatientQPatient;
-  appointment: PatientQAppointment;
-  wasExistingPatient: boolean;
+  client: IntakeQClient;
+  appointment: IntakeQAppointment;
+  wasExistingClient: boolean;
 }
 
-export function useCreatePatientQAppointment() {
+export function useCreateIntakeQAppointment() {
   const [result, setResult] = useState<AppointmentCreationResult | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (payload: AppointmentCreationPayload): Promise<AppointmentCreationResult> => {
-      // 1. Search for existing patient
-      const { patients } = await patientqClient.searchPatient({
-        email: payload.patient.email,
-        phone: payload.patient.phone,
-      });
+      // 1. Search for existing client by email
+      const existing = await intakeqClient.searchClient(payload.client.email);
+      // Narrow to exact email match
+      const matched = existing.filter(
+        (c) => c.Email?.toLowerCase() === payload.client.email.toLowerCase(),
+      );
 
-      let patient: PatientQPatient;
-      let wasExistingPatient = false;
+      let client: IntakeQClient;
+      let wasExistingClient = false;
 
-      if (patients && patients.length > 0) {
-        patient = patients[0];
-        wasExistingPatient = true;
+      if (matched.length > 0) {
+        // Update existing client with latest data (GET first, then POST back per API docs)
+        client = await intakeqClient.createOrUpdateClient({
+          clientId: matched[0].ClientId,
+          ...payload.client,
+        });
+        wasExistingClient = true;
       } else {
-        patient = await patientqClient.createPatient(payload.patient);
+        // Create new client
+        client = await intakeqClient.createOrUpdateClient(payload.client);
       }
 
       // 2. Create appointment
-      const appointment = await patientqClient.createAppointment({
-        patientId: patient.id,
+      const appointment = await intakeqClient.createAppointment({
+        clientId: client.ClientId,
         ...payload.appointment,
       });
 
-      return { patient, appointment, wasExistingPatient };
+      return { client, appointment, wasExistingClient };
     },
     onSuccess: (data) => setResult(data),
   });

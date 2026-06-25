@@ -1,17 +1,22 @@
-// Headway link detection utilities
-// Headway URLs appear as headway.co/... or app.headway.co/...
-
-const HEADWAY_PATTERN = /https?:\/\/(?:app\.)?headway\.co\/[^\s"'<>)]+/gi;
+const HEADWAY_PATTERN = /\b(?:https?:\/\/)?(?:app\.)?headway\.co\/[^\s"'<>)]+/gi;
 
 export interface HeadwayLink {
   url: string;
   label: string;
 }
 
+function normalizeUrl(raw: string): string {
+  // Strip trailing punctuation that isn't part of the URL
+  const stripped = raw.replace(/[.,;:!?)]+$/, "");
+  // Ensure scheme is present
+  return stripped.startsWith("http") ? stripped : `https://${stripped}`;
+}
+
 export function extractHeadwayLinks(text: string): HeadwayLink[] {
   const matches = text.match(HEADWAY_PATTERN);
   if (!matches) return [];
-  return [...new Set(matches)].map((url) => ({
+  const urls = [...new Set(matches.map(normalizeUrl))];
+  return urls.map((url) => ({
     url,
     label: url.replace(/^https?:\/\//, "").replace(/\/$/, ""),
   }));
@@ -27,7 +32,7 @@ export function isValidHeadwayUrl(url: string): boolean {
     const parsed = new URL(url);
     return (
       (parsed.hostname === "headway.co" || parsed.hostname === "app.headway.co") &&
-      parsed.protocol.startsWith("http")
+      (parsed.protocol === "http:" || parsed.protocol === "https:")
     );
   } catch {
     return false;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   X, ChevronRight, ExternalLink, AlertCircle, CheckCircle2,
   User, Calendar, ClipboardList, Loader2,
@@ -8,7 +8,7 @@ import { toast } from "@/hooks/useToast";
 import { useHeadwayWorkflow, type ClientData } from "@/hooks/useHeadwayWorkflow";
 import { useCreateContact, useUpdateContact } from "@/hooks/useContacts";
 import { useFindExistingContact } from "@/hooks/useContactMerge";
-import { useCreatePatientQAppointment, useAppointmentTypes } from "@/hooks/usePatientQAppointment";
+import { useCreateIntakeQAppointment, useBookingSettings } from "@/hooks/usePatientQAppointment";
 import { supabase } from "@/lib/supabase";
 import { PatientDataForm } from "./PatientDataForm";
 import { AppointmentTypeSelector, type AppointmentSelection } from "./AppointmentTypeSelector";
@@ -47,15 +47,32 @@ export function HeadwayWorkflowPanel({
   const [confirmed, setConfirmed] = useState(false);
   const [mergeChoice, setMergeChoice] = useState<"update" | "new" | null>(null);
 
+  // Reset all step state whenever a new workflow is opened (prevents patient data leakage)
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      setClientData({});
+      setApptSelection(null);
+      setConfirmed(false);
+      setMergeChoice(null);
+    }
+  }, [isOpen, workflow?.headwayLink]);
+
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
-  const createAppt = useCreatePatientQAppointment();
-  const { data: apptTypes, isLoading: loadingTypes } = useAppointmentTypes();
+  const createAppt = useCreateIntakeQAppointment();
+  const { data: bookingSettings, isLoading: loadingSettings } = useBookingSettings();
 
-  const existing = useFindExistingContact(
+  const contactMatch = useFindExistingContact(
     clientData.email,
     clientData.phone,
   );
+
+  const existingContact =
+    contactMatch.data?.status === "match" ? contactMatch.data.contact :
+    contactMatch.data?.status === "ambiguous" ? contactMatch.data.contacts[0] :
+    null;
+  const isAmbiguous = contactMatch.data?.status === "ambiguous";
 
   if (!isOpen || !workflow) return null;
 
@@ -66,7 +83,8 @@ export function HeadwayWorkflowPanel({
   function handleOpenHeadway() {
     window.open(workflow!.headwayLink, "_blank", "noopener,noreferrer");
     updateStatus("opened");
-    saveWorkflow.mutate({ status: "opened" });
+    // Fire-and-forget: pass snapshot to avoid race if state changes before async resolves
+    saveWorkflow.mutate({ status: "opened", _workflowSnapshot: workflow });
     advance();
   }
 
@@ -79,6 +97,10 @@ export function HeadwayWorkflowPanel({
   function handleReviewContinue() {
     if (!clientData.fullName) {
       toast({ variant: "destructive", title: "Client name is required before continuing." });
+      return;
+    }
+    if (isAmbiguous && !mergeChoice) {
+      toast({ variant: "destructive", title: "Multiple contacts found. Please choose how to proceed." });
       return;
     }
     updateStatus("needs_review");
@@ -102,16 +124,23 @@ export function HeadwayWorkflowPanel({
     }
     if (!apptSelection) return;
 
+    // Snapshot workflow state to avoid race conditions during async operations
+    const workflowSnapshot = workflow;
+
     try {
-      // 1. Create or update contact in app
-      let contactId = existing.data?.id;
+      // 1. Resolve contact
+      let contactId = existingContact?.id;
+
+      const nameParts = clientData.fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] ?? "";
+      const lastName = nameParts.slice(1).join(" ") || firstName;
 
       const contactPayload = {
         display_name: clientData.fullName,
         primary_email: clientData.email || null,
         primary_phone: clientData.phone || null,
         notes: [
-          existing.data?.notes,
+          existingContact?.notes,
           `Source: Headway | Intake: ${new Date().toLocaleDateString()}`,
           clientData.address ? `Address: ${clientData.address}` : null,
         ].filter(Boolean).join("\n"),
@@ -124,25 +153,26 @@ export function HeadwayWorkflowPanel({
         contactId = newContact.id;
       }
 
-      // 2. Create PatientQ appointment
+      // 2. Create IntakeQ appointment (search/create client + create appointment)
       const apptResult = await createAppt.mutateAsync({
-        patient: {
-          name: clientData.fullName,
+        client: {
+          firstName,
+          lastName,
           email: clientData.email!,
           phone: clientData.phone!,
-          address: clientData.address,
         },
         appointment: {
-          appointmentTypeId: apptSelection.appointmentTypeId,
-          date: clientData.appointmentDate || apptSelection.date || "",
-          time: clientData.appointmentTime || apptSelection.time || "",
-          format: apptSelection.format,
-          providerId: apptSelection.providerId,
-          notes: apptSelection.notes,
+          serviceId: apptSelection.serviceId,
+          locationId: apptSelection.locationId,
+          practitionerId: apptSelection.practitionerId,
+          utcDateTime: apptSelection.utcDateTime,
+          status: "Confirmed",
+          reminderType: apptSelection.reminderType,
+          clientNote: apptSelection.clientNote,
         },
       });
 
-      // 3. Save external ref
+      // 3. Save external refs (abort on failure — data integrity matters here)
       const { data: { session } } = await supabase.auth.getSession();
       if (session && contactId) {
         const { data: wsData } = await supabase
@@ -153,22 +183,26 @@ export function HeadwayWorkflowPanel({
           .single();
 
         if (wsData) {
-          await supabase.from("contact_external_refs").insert([
+          const { error: refError } = await supabase.from("contact_external_refs").insert([
             {
               workspace_id: wsData.workspace_id,
               contact_id: contactId,
-              source: "patientq",
-              external_id: apptResult.patient.id,
-              metadata: { appointment_id: apptResult.appointment.id },
+              source: "intakeq",
+              external_id: String(apptResult.client.ClientId),
+              metadata: { appointment_id: apptResult.appointment.Id },
             },
             {
               workspace_id: wsData.workspace_id,
               contact_id: contactId,
               source: "headway",
-              external_id: workflow.headwayLink,
-              metadata: { headway_link: workflow.headwayLink },
+              external_id: workflow!.headwayLink,
+              metadata: { headway_link: workflow!.headwayLink },
             },
           ]);
+          if (refError) {
+            // Non-fatal: log but continue — appointment is already created
+            console.error("[workflow] Failed to save external refs:", refError.message);
+          }
         }
       }
 
@@ -176,28 +210,29 @@ export function HeadwayWorkflowPanel({
       await saveWorkflow.mutateAsync({
         status: "appointment_created",
         contactId,
-        patientqPatientId: apptResult.patient.id,
-        patientqAppointmentId: apptResult.appointment.id,
+        patientqPatientId: String(apptResult.client.ClientId),
+        patientqAppointmentId: apptResult.appointment.Id,
         clientData,
         appointmentData: apptSelection as Record<string, unknown>,
+        _workflowSnapshot: workflowSnapshot,
       });
 
       updateStatus("appointment_created", {
         contactId,
-        patientqPatientId: apptResult.patient.id,
-        patientqAppointmentId: apptResult.appointment.id,
+        patientqPatientId: String(apptResult.client.ClientId),
+        patientqAppointmentId: apptResult.appointment.Id,
       });
 
       advance();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "An error occurred";
       toast({ variant: "destructive", title: "Failed to create appointment", description: msg });
-      await saveWorkflow.mutateAsync({ status: "failed", errorMessage: msg });
+      await saveWorkflow.mutateAsync({ status: "failed", errorMessage: msg, _workflowSnapshot: workflowSnapshot });
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end">
+    <div className="fixed inset-0 z-[60] flex items-stretch justify-end">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -219,7 +254,7 @@ export function HeadwayWorkflowPanel({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-0.5">
               Clinical Intake
             </p>
-            <h2 className="text-base font-semibold text-foreground">Headway → PatientQ</h2>
+            <h2 className="text-base font-semibold text-foreground">Headway → IntakeQ</h2>
           </div>
           <button
             onClick={onClose}
@@ -277,7 +312,8 @@ export function HeadwayWorkflowPanel({
           {step === 4 && (
             <StepReview
               clientData={clientData}
-              existingContact={existing.data ?? null}
+              existingContact={existingContact}
+              isAmbiguous={isAmbiguous}
               mergeChoice={mergeChoice}
               setMergeChoice={setMergeChoice}
               onChange={setClientData}
@@ -286,8 +322,10 @@ export function HeadwayWorkflowPanel({
           )}
           {step === 5 && (
             <AppointmentTypeSelector
-              appointmentTypes={apptTypes ?? []}
-              isLoading={loadingTypes}
+              services={bookingSettings?.Services ?? []}
+              locations={bookingSettings?.Locations ?? []}
+              practitioners={bookingSettings?.Practitioners ?? []}
+              isLoading={loadingSettings}
               initialDate={clientData.appointmentDate}
               initialTime={clientData.appointmentTime}
               onSelect={handleApptSelected}
@@ -297,7 +335,7 @@ export function HeadwayWorkflowPanel({
             <StepConfirm
               clientData={clientData}
               apptSelection={apptSelection}
-              apptTypes={apptTypes ?? []}
+              bookingSettings={bookingSettings}
               confirmed={confirmed}
               setConfirmed={setConfirmed}
               onConfirm={handleConfirmCreate}
@@ -419,6 +457,7 @@ function StepOpenHeadway({
 function StepReview({
   clientData,
   existingContact,
+  isAmbiguous,
   mergeChoice,
   setMergeChoice,
   onChange,
@@ -426,6 +465,7 @@ function StepReview({
 }: {
   clientData: Partial<ClientData>;
   existingContact: import("@/hooks/useContacts").Contact | null;
+  isAmbiguous: boolean;
   mergeChoice: "update" | "new" | null;
   setMergeChoice: (c: "update" | "new") => void;
   onChange: (d: Partial<ClientData>) => void;
@@ -442,10 +482,15 @@ function StepReview({
         <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 dark:bg-amber-950/30 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <AlertCircle size={14} className="text-amber-600 shrink-0" />
-            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Existing contact found</p>
+            <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+              {isAmbiguous ? "Multiple contacts found — potential duplicate" : "Existing contact found"}
+            </p>
           </div>
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            <strong>{existingContact.display_name}</strong> already exists with matching email or phone.
+            {isAmbiguous
+              ? "Email and phone match different contacts. Choose how to proceed:"
+              : <><strong>{existingContact.display_name}</strong> already exists with matching email or phone.</>
+            }
           </p>
           <div className="flex gap-2">
             <button
@@ -524,7 +569,7 @@ function StepReview({
 function StepConfirm({
   clientData,
   apptSelection,
-  apptTypes,
+  bookingSettings,
   confirmed,
   setConfirmed,
   onConfirm,
@@ -532,19 +577,21 @@ function StepConfirm({
 }: {
   clientData: Partial<ClientData>;
   apptSelection: AppointmentSelection | null;
-  apptTypes: { id: string; label: string }[];
+  bookingSettings: import("@/lib/patientqClient").BookingSettings | undefined;
   confirmed: boolean;
   setConfirmed: (b: boolean) => void;
   onConfirm: () => void;
   isLoading: boolean;
 }) {
-  const apptTypeLabel = apptTypes.find((t) => t.id === apptSelection?.appointmentTypeId)?.label ?? apptSelection?.appointmentTypeId ?? "—";
+  const serviceName = bookingSettings?.Services.find((s) => s.Id === apptSelection?.serviceId)?.Name ?? apptSelection?.serviceId ?? "—";
+  const locationName = bookingSettings?.Locations.find((l) => l.Id === apptSelection?.locationId)?.Name ?? apptSelection?.locationId ?? "—";
+  const practitionerName = bookingSettings?.Practitioners.find((p) => p.Id === apptSelection?.practitionerId)?.CompleteName ?? apptSelection?.practitionerId ?? "—";
 
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-1">Confirm Appointment Creation</h3>
-        <p className="text-xs text-muted-foreground">Review the summary below. Once confirmed, the appointment will be created in PatientQ.</p>
+        <p className="text-xs text-muted-foreground">Review the summary below. Once confirmed, the appointment will be created in IntakeQ.</p>
       </div>
 
       <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
@@ -563,11 +610,13 @@ function StepConfirm({
           <Calendar size={14} className="text-muted-foreground" />
           <span className="text-xs font-semibold text-foreground">Appointment</span>
         </div>
-        <SummaryRow label="Type" value={apptTypeLabel} />
-        <SummaryRow label="Date" value={clientData.appointmentDate || apptSelection?.date} />
-        <SummaryRow label="Time" value={clientData.appointmentTime || apptSelection?.time} />
-        <SummaryRow label="Format" value={apptSelection?.format} />
-        {apptSelection?.notes && <SummaryRow label="Notes" value={apptSelection.notes} />}
+        <SummaryRow label="Service" value={serviceName} />
+        <SummaryRow label="Location" value={locationName} />
+        <SummaryRow label="Provider" value={practitionerName} />
+        <SummaryRow label="Date" value={apptSelection?.date} />
+        <SummaryRow label="Time" value={apptSelection?.time} />
+        <SummaryRow label="Reminder" value={apptSelection?.reminderType} />
+        {apptSelection?.clientNote && <SummaryRow label="Note" value={apptSelection.clientNote} />}
       </div>
 
       <label className="flex items-start gap-3 cursor-pointer select-none">
@@ -578,7 +627,7 @@ function StepConfirm({
           className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
         />
         <span className="text-xs text-foreground leading-relaxed">
-          I confirm that the above patient and appointment information is accurate and I authorize creating this appointment in PatientQ.
+          I confirm that the above patient and appointment information is accurate and I authorize creating this appointment in IntakeQ.
         </span>
       </label>
 

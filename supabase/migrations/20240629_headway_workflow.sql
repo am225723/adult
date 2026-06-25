@@ -3,7 +3,7 @@
 -- Main workflow tracking table
 CREATE TABLE IF NOT EXISTS headway_workflows (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id uuid REFERENCES admin_workspaces(id) ON DELETE CASCADE,
+  workspace_id uuid NOT NULL REFERENCES admin_workspaces(id) ON DELETE CASCADE,
   created_by uuid REFERENCES admin_users(id),
   quo_message_id text,
   headway_link text NOT NULL,
@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS headway_workflows (
 CREATE INDEX IF NOT EXISTS idx_headway_workflows_workspace ON headway_workflows(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_headway_workflows_status ON headway_workflows(status);
 CREATE INDEX IF NOT EXISTS idx_headway_workflows_contact ON headway_workflows(contact_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_headway_workflows_message_link_unique
+  ON headway_workflows(workspace_id, quo_message_id, headway_link)
+  WHERE quo_message_id IS NOT NULL;
 
 ALTER TABLE headway_workflows ENABLE ROW LEVEL SECURITY;
 
@@ -51,7 +54,7 @@ CREATE POLICY "headway_workflows_update" ON headway_workflows FOR UPDATE
 -- External references linking contacts to Headway / PatientQ
 CREATE TABLE IF NOT EXISTS contact_external_refs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id uuid REFERENCES admin_workspaces(id) ON DELETE CASCADE,
+  workspace_id uuid NOT NULL REFERENCES admin_workspaces(id) ON DELETE CASCADE,
   contact_id uuid REFERENCES admin_contacts(id) ON DELETE CASCADE,
   source text NOT NULL,
   external_id text,
@@ -61,6 +64,9 @@ CREATE TABLE IF NOT EXISTS contact_external_refs (
 
 CREATE INDEX IF NOT EXISTS idx_contact_external_refs_contact ON contact_external_refs(contact_id);
 CREATE INDEX IF NOT EXISTS idx_contact_external_refs_source ON contact_external_refs(source);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contact_external_refs_external_unique
+  ON contact_external_refs(workspace_id, source, external_id)
+  WHERE external_id IS NOT NULL;
 
 ALTER TABLE contact_external_refs ENABLE ROW LEVEL SECURITY;
 
@@ -85,7 +91,7 @@ CREATE POLICY "contact_external_refs_update" ON contact_external_refs FOR UPDATE
 -- Audit logs for clinical compliance
 CREATE TABLE IF NOT EXISTS audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id uuid REFERENCES admin_workspaces(id) ON DELETE CASCADE,
+  workspace_id uuid NOT NULL REFERENCES admin_workspaces(id) ON DELETE CASCADE,
   user_id uuid REFERENCES admin_users(id),
   action text NOT NULL,
   resource_type text,
@@ -108,6 +114,9 @@ CREATE POLICY "audit_logs_select" ON audit_logs FOR SELECT
 
 DROP POLICY IF EXISTS "audit_logs_insert" ON audit_logs;
 CREATE POLICY "audit_logs_insert" ON audit_logs FOR INSERT
-  WITH CHECK (workspace_id IN (
-    SELECT workspace_id FROM admin_workspace_members WHERE user_id = auth.uid()
-  ));
+  WITH CHECK (
+    workspace_id IN (
+      SELECT workspace_id FROM admin_workspace_members WHERE user_id = auth.uid()
+    )
+    AND user_id = auth.uid()
+  );
