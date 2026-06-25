@@ -12,6 +12,7 @@ export interface Task {
   parent_task_id: string | null;
   title: string;
   notes: string | null;
+  tags: string[] | null;
   due_date: string | null;
   priority: TaskPriority;
   status: TaskStatus;
@@ -29,7 +30,7 @@ export interface Project {
   archived: boolean | null;
 }
 
-type TaskFilter = "today" | "upcoming" | "overdue" | "completed" | "all";
+type TaskFilter = "today" | "upcoming" | "overdue" | "completed" | "all" | "mine" | "unassigned";
 
 export function useTasks(filter: TaskFilter = "all", projectId?: string) {
   const { user } = useAuth();
@@ -65,6 +66,18 @@ export function useTasks(filter: TaskFilter = "all", projectId?: string) {
           break;
         case "completed":
           query = query.eq("status", "done").order("completed_at", { ascending: false, nullsFirst: false });
+          break;
+        case "mine":
+          query = query
+            .eq("assigned_to", user!.id)
+            .neq("status", "done")
+            .neq("status", "cancelled");
+          break;
+        case "unassigned":
+          query = query
+            .is("assigned_to", null)
+            .neq("status", "done")
+            .neq("status", "cancelled");
           break;
         default:
           query = query.neq("status", "done").neq("status", "cancelled");
@@ -130,10 +143,12 @@ export function useCreateTask() {
     mutationFn: async (task: {
       title: string;
       notes?: string;
+      tags?: string[];
       due_date?: string;
       priority?: TaskPriority;
       project_id?: string;
       parent_task_id?: string;
+      assigned_to?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
       const wsId = await getWorkspaceId(user.id);
@@ -146,9 +161,11 @@ export function useCreateTask() {
           priority: task.priority ?? "none",
           title: task.title,
           notes: task.notes ?? null,
+          tags: task.tags ?? null,
           due_date: task.due_date ?? null,
           project_id: task.project_id ?? null,
           parent_task_id: task.parent_task_id ?? null,
+          assigned_to: task.assigned_to ?? null,
         })
         .select()
         .single();

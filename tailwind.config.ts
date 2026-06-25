@@ -54,18 +54,18 @@ const config: Config = {
         },
       },
       borderRadius: {
+        sm: "0.5rem",
+        DEFAULT: "var(--radius)",        /* 1rem — buttons, inputs */
+        md: "1.5rem",
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xl: "2rem",                      /* dashboard cards */
+        "2xl": "3rem",
+        full: "9999px",
       },
       fontFamily: {
-        sans: [
-          "-apple-system",
-          "BlinkMacSystemFont",
-          '"Segoe UI"',
-          "Inter",
-          "sans-serif",
-        ],
+        sans: ["Plus Jakarta Sans", "sans-serif"],
+        display: ["Montserrat", "sans-serif"],
+        label: ["Archivo Narrow", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {

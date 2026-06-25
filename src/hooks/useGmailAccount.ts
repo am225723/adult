@@ -2,12 +2,50 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
+export function useGmailAccounts() {
+  const { user } = useAuth();
+  return useQuery<GmailAccountRow[]>({
+    queryKey: ["gmail-accounts", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("admin_gmail_accounts")
+        .select(
+          "id, provider, external_account_email, sync_enabled, last_synced_at, available_labels, sync_labels",
+        )
+        .eq("user_id", user.id)
+        .eq("provider", "google")
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []) as GmailAccountRow[];
+    },
+    enabled: !!user,
+  });
+}
+
+export function useInvalidateGmailAccounts() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return () => {
+    qc.invalidateQueries({ queryKey: ["gmail-account", user?.id] });
+    qc.invalidateQueries({ queryKey: ["gmail-accounts", user?.id] });
+  };
+}
+
+export interface LabelEntry {
+  id: string;
+  name: string;
+  type: string;
+}
+
 export interface GmailAccountRow {
   id: string;
   provider: string;
   external_account_email: string | null;
   sync_enabled: boolean | null;
   last_synced_at: string | null;
+  available_labels: LabelEntry[];
+  sync_labels: string[];
 }
 
 export function useGmailAccount() {
@@ -19,7 +57,7 @@ export function useGmailAccount() {
       const { data, error } = await supabase
         .from("admin_gmail_accounts")
         .select(
-          "id, provider, external_account_email, sync_enabled, last_synced_at",
+          "id, provider, external_account_email, sync_enabled, last_synced_at, available_labels, sync_labels",
         )
         .eq("user_id", user.id)
         .eq("provider", "google")

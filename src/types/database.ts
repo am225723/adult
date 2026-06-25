@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_saved_searches: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          user_id: string
+          name: string
+          query: string
+          category: string
+          filters: string[]
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          user_id: string
+          name: string
+          query?: string
+          category?: string
+          filters?: string[]
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          user_id?: string
+          name?: string
+          query?: string
+          category?: string
+          filters?: string[]
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_saved_searches_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_saved_searches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_ai_summaries: {
         Row: {
           generated_at: string | null
@@ -265,6 +313,58 @@ export type Database = {
           },
         ]
       }
+      admin_contact_notes: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          contact_id: string
+          created_by: string | null
+          body: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          contact_id: string
+          created_by?: string | null
+          body: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          contact_id?: string
+          created_by?: string | null
+          body?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_contact_notes_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_contact_notes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "admin_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_contact_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_contact_emails: {
         Row: {
           contact_id: string | null
@@ -462,53 +562,74 @@ export type Database = {
       }
       admin_emails: {
         Row: {
+          body: string | null
           contact_id: string | null
           created_at: string | null
           email_account_id: string | null
+          external_message_id: string | null
           folder: string | null
+          from_addr: string | null
           from_address: string | null
+          gmail_account_id: string | null
           gmail_message_id: string | null
           gmail_thread_id: string | null
           id: string
           is_flagged: boolean | null
           is_read: boolean | null
+          is_starred: boolean | null
+          labels: string[] | null
           received_at: string | null
           snippet: string | null
           subject: string | null
+          to_addr: string | null
           to_addresses: string[] | null
           workspace_id: string | null
         }
         Insert: {
+          body?: string | null
           contact_id?: string | null
           created_at?: string | null
           email_account_id?: string | null
+          external_message_id?: string | null
           folder?: string | null
+          from_addr?: string | null
           from_address?: string | null
+          gmail_account_id?: string | null
           gmail_message_id?: string | null
           gmail_thread_id?: string | null
           id?: string
           is_flagged?: boolean | null
           is_read?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
           received_at?: string | null
           snippet?: string | null
           subject?: string | null
+          to_addr?: string | null
           to_addresses?: string[] | null
           workspace_id?: string | null
         }
         Update: {
+          body?: string | null
           contact_id?: string | null
           created_at?: string | null
           email_account_id?: string | null
+          external_message_id?: string | null
           folder?: string | null
+          from_addr?: string | null
           from_address?: string | null
+          gmail_account_id?: string | null
           gmail_message_id?: string | null
           gmail_thread_id?: string | null
           id?: string
           is_flagged?: boolean | null
           is_read?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
           received_at?: string | null
           snippet?: string | null
           subject?: string | null
+          to_addr?: string | null
           to_addresses?: string[] | null
           workspace_id?: string | null
         }

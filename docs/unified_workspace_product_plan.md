@@ -451,7 +451,7 @@ ai_summaries (
   source_id uuid,                -- null for daily_briefing (it's not tied to one object)
   summary_text text not null,
   generated_at timestamptz default now(),
-  model_used text                -- e.g. 'claude-haiku-4-5'
+  model_used text                -- e.g. 'claude-haiku-4-5-20251001'
 )
 
 -- ============ INTEGRATIONS (generic connection registry) ============

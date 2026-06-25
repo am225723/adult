@@ -7,6 +7,8 @@ import {
   Plus,
   RefreshCw,
   AlertCircle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +22,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarAccount } from "@/hooks/useCalendarAccount";
@@ -40,10 +41,6 @@ function startOfWeek(d: Date): Date {
   date.setDate(date.getDate() - day);
   date.setHours(0, 0, 0, 0);
   return date;
-}
-
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function addDays(d: Date, n: number): Date {
@@ -176,16 +173,20 @@ function ConnectPrompt({ onConnect }: { onConnect: () => void }) {
 function EventChip({
   event,
   hasConflict,
+  onClick,
 }: {
   event: CalendarEvent;
   hasConflict: boolean;
+  onClick?: () => void;
 }) {
   const start = new Date(event.start_time);
   return (
     <div
       title={`${event.title}${event.all_day ? "" : ` · ${fmt12(start)}`}`}
+      onClick={onClick}
       className={cn(
-        "text-[11px] leading-tight px-1 py-0.5 rounded-sm truncate cursor-default",
+        "text-[11px] leading-tight px-1 py-0.5 rounded-sm truncate",
+        onClick ? "cursor-pointer hover:opacity-80" : "cursor-default",
         "bg-primary/15 text-primary",
         hasConflict &&
           "ring-1 ring-inset ring-destructive bg-destructive/10 text-destructive",
@@ -207,10 +208,12 @@ function MonthView({
   cursor,
   events,
   conflictIds,
+  onEventClick,
 }: {
   cursor: Date;
   events: CalendarEvent[];
   conflictIds: Set<string>;
+  onEventClick?: (ev: CalendarEvent) => void;
 }) {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -280,6 +283,7 @@ function MonthView({
                     key={ev.id}
                     event={ev}
                     hasConflict={conflictIds.has(ev.id)}
+                    onClick={onEventClick ? () => onEventClick(ev) : undefined}
                   />
                 ))}
                 {dayEvs.length > 3 && (
@@ -305,10 +309,12 @@ function TimeGrid({
   days,
   events,
   conflictIds,
+  onEventClick,
 }: {
   days: Date[];
   events: CalendarEvent[];
   conflictIds: Set<string>;
+  onEventClick?: (ev: CalendarEvent) => void;
 }) {
   const byDay = useMemo(() => {
     const m = new Map<string, CalendarEvent[]>();
@@ -335,7 +341,7 @@ function TimeGrid({
   }, []);
 
   return (
-    <div className="flex flex-col overflow-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       {/* Day headers */}
       <div className="sticky top-0 z-10 bg-background border-b border-border flex">
         <div className="w-14 shrink-0" />
@@ -464,8 +470,10 @@ function TimeGrid({
                   <div
                     key={ev.id}
                     title={`${ev.title} · ${fmt12(start)} – ${fmt12(end)}`}
+                    onClick={() => onEventClick?.(ev)}
                     className={cn(
-                      "absolute left-0.5 right-0.5 rounded-sm text-[11px] px-1 py-0.5 overflow-hidden cursor-default",
+                      "absolute left-0.5 right-0.5 rounded-sm text-[11px] px-1 py-0.5 overflow-hidden",
+                      onEventClick ? "cursor-pointer hover:opacity-80" : "cursor-default",
                       "bg-primary/20 text-primary border border-primary/30",
                       conflictIds.has(ev.id) &&
                         "bg-destructive/15 text-destructive border-destructive/40",
@@ -494,9 +502,11 @@ function TimeGrid({
 function AgendaView({
   events,
   conflictIds,
+  onEventClick,
 }: {
   events: CalendarEvent[];
   conflictIds: Set<string>;
+  onEventClick?: (ev: CalendarEvent) => void;
 }) {
   const grouped = useMemo(() => {
     const m = new Map<string, CalendarEvent[]>();
@@ -548,10 +558,12 @@ function AgendaView({
                 return (
                   <div
                     key={ev.id}
+                    onClick={() => onEventClick?.(ev)}
                     className={cn(
                       "flex items-start gap-3 rounded-lg px-3 py-2 text-sm",
                       "bg-card border border-border",
                       hasConflict && "border-destructive/50",
+                      onEventClick && "cursor-pointer hover:bg-muted/50 transition-colors",
                     )}
                   >
                     <div className="min-w-[80px] text-xs text-muted-foreground pt-0.5">
@@ -590,6 +602,289 @@ function AgendaView({
         );
       })}
     </div>
+  );
+}
+
+// ── Event Detail / Edit / Delete Dialog ───────────────────────────────────────
+
+type EventDialogMode = "detail" | "edit" | "delete-confirm";
+
+function EventDetailDialog({
+  event,
+  open,
+  onOpenChange,
+}: {
+  event: CalendarEvent | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { session } = useAuth();
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<EventDialogMode>("detail");
+  const [saving, setSaving] = useState(false);
+
+  // Edit form state
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("10:00");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [allDay, setAllDay] = useState(false);
+
+  useEffect(() => {
+    if (event && open) {
+      setMode("detail");
+      setSaving(false);
+      const s = new Date(event.start_time);
+      const e = new Date(event.end_time);
+      setTitle(event.title ?? "");
+      setDate(s.toISOString().slice(0, 10));
+      setStartTime(s.toTimeString().slice(0, 5));
+      setEndTime(e.toTimeString().slice(0, 5));
+      setLocation(event.location ?? "");
+      setDescription(event.description ?? "");
+      setAllDay(event.all_day ?? false);
+    }
+  }, [event, open]);
+
+  const canWrite =
+    event && !event.is_read_only && !!event.external_event_id && !!session;
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!event || !session) return;
+    if (!allDay) {
+      const s = new Date(`${date}T${startTime}`);
+      const en = new Date(`${date}T${endTime}`);
+      if (en <= s) {
+        toast({ variant: "destructive", title: "End time must be after start time" });
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      const startISO = allDay
+        ? `${date}T00:00:00.000Z`
+        : new Date(`${date}T${startTime}`).toISOString();
+      const endISO = allDay
+        ? `${date}T23:59:59.000Z`
+        : new Date(`${date}T${endTime}`).toISOString();
+      const res = await fetch(`${FN_BASE}/google-calendar-write`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "update",
+          event_id: event.id,
+          external_event_id: event.external_event_id,
+          title: title.trim(),
+          description: description || undefined,
+          location: location || undefined,
+          start_time: startISO,
+          end_time: endISO,
+          all_day: allDay,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to update event");
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
+      toast({ title: "Event updated" });
+      onOpenChange(false);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to update event", description: String(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!event || !session) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${FN_BASE}/google-calendar-write`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "delete",
+          event_id: event.id,
+          external_event_id: event.external_event_id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete event");
+      qc.invalidateQueries({ queryKey: ["calendar-events"] });
+      toast({ title: "Event deleted" });
+      onOpenChange(false);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to delete event", description: String(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!event) return null;
+
+  const startDate = new Date(event.start_time);
+  const endDate = new Date(event.end_time);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        {mode === "detail" && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="pr-6">{event.title}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                  When
+                </span>
+                <p className="mt-0.5 text-foreground">
+                  {event.all_day
+                    ? startDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+                    : `${startDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} · ${fmt12(startDate)} – ${fmt12(endDate)}`}
+                </p>
+              </div>
+              {event.location && (
+                <div>
+                  <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                    Location
+                  </span>
+                  <p className="mt-0.5 text-foreground">{event.location}</p>
+                </div>
+              )}
+              {event.description && (
+                <div>
+                  <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                    Description
+                  </span>
+                  <p className="mt-0.5 text-foreground whitespace-pre-wrap">{event.description}</p>
+                </div>
+              )}
+              {event.is_read_only && (
+                <p className="text-xs text-muted-foreground italic">Read-only event</p>
+              )}
+            </div>
+            <DialogFooter className="gap-2">
+              {canWrite && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setMode("delete-confirm")}
+                  >
+                    <Trash2 size={13} className="mr-1" />
+                    Delete
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => setMode("edit")}>
+                    <Pencil size={13} className="mr-1" />
+                    Edit
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </>
+        )}
+
+        {mode === "edit" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Edit event</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSave} className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="edit-title">Title</Label>
+                <Input
+                  id="edit-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="edit-allday"
+                  checked={allDay}
+                  onChange={(e) => setAllDay(e.target.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+                <Label htmlFor="edit-allday" className="cursor-pointer">All day</Label>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="edit-date">Date</Label>
+                  <Input id="edit-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                </div>
+                {!allDay && (
+                  <>
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-start">Start</Label>
+                      <Input id="edit-start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-end">End</Label>
+                      <Input id="edit-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-loc">Location</Label>
+                <Input id="edit-loc" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Add location" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-desc">Description</Label>
+                <Textarea id="edit-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" size="sm" onClick={() => setMode("detail")}>
+                  Back
+                </Button>
+                <Button type="submit" size="sm" disabled={saving || !title.trim()}>
+                  {saving ? "Saving…" : "Save changes"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+
+        {mode === "delete-confirm" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Delete event?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              This will permanently delete <span className="font-medium text-foreground">{event.title}</span> from your Google Calendar.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => setMode("detail")}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={saving}
+              >
+                {saving ? "Deleting…" : "Delete event"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -788,6 +1083,7 @@ export function CalendarPage() {
   const [cursor, setCursor] = useState(new Date());
   const [newEventOpen, setNewEventOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const { session } = useAuth();
   const qc = useQueryClient();
@@ -893,7 +1189,7 @@ export function CalendarPage() {
   });
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full min-h-0">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
         {/* Today + nav */}
@@ -975,19 +1271,25 @@ export function CalendarPage() {
             Loading events…
           </div>
         ) : view === "month" ? (
-          <MonthView cursor={cursor} events={events} conflictIds={conflictIds} />
+          <MonthView cursor={cursor} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
         ) : view === "week" ? (
-          <TimeGrid days={weekDays} events={events} conflictIds={conflictIds} />
+          <TimeGrid days={weekDays} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
         ) : view === "day" ? (
-          <TimeGrid days={dayView} events={events} conflictIds={conflictIds} />
+          <TimeGrid days={dayView} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
         ) : (
-          <AgendaView events={events} conflictIds={conflictIds} />
+          <AgendaView events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
         )}
       </div>
 
       <NewEventDialog
         open={newEventOpen}
         onOpenChange={setNewEventOpen}
+      />
+
+      <EventDetailDialog
+        event={selectedEvent}
+        open={!!selectedEvent}
+        onOpenChange={(v) => { if (!v) setSelectedEvent(null); }}
       />
     </div>
   );

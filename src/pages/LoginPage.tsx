@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/useToast";
+import { KeyRound } from "lucide-react";
 
 type Mode = "sign_in" | "sign_up" | "forgot";
 
@@ -56,6 +57,21 @@ export function LoginPage() {
     }
   }
 
+  async function handlePasskeyLogin() {
+    setSubmitting(true);
+    const { error } = await supabase.auth.signInWithPasskey();
+    if (error) {
+      if (error.message !== "The operation either timed out or was not allowed.") {
+        toast({
+          variant: "destructive",
+          title: "Passkey sign-in failed",
+          description: error.message,
+        });
+      }
+      setSubmitting(false);
+    }
+  }
+
   async function handleGoogleLogin() {
     setSubmitting(true);
     const { error } = await supabase.auth.signInWithOAuth({
@@ -89,11 +105,18 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8 animate-fade-in">
         {/* Logo / wordmark */}
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Adulting
-          </h1>
-          <p className="text-sm text-muted-foreground">{title}</p>
+        <div className="space-y-3">
+          <img
+            src="/whitelogo.png"
+            alt="Integrative Psychiatry"
+            className="w-14 h-14 rounded-full"
+          />
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Adulting
+            </h1>
+            <p className="text-sm text-muted-foreground">{title}</p>
+          </div>
         </div>
 
         {mode === "forgot" && resetSent ? (
@@ -185,15 +208,27 @@ export function LoginPage() {
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={handleGoogleLogin}
-              disabled={submitting}
-            >
-              <GoogleIcon />
-              Continue with Google
-            </Button>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handlePasskeyLogin}
+                disabled={submitting}
+              >
+                <KeyRound size={16} />
+                Sign in with passkey
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleGoogleLogin}
+                disabled={submitting}
+              >
+                <GoogleIcon />
+                Continue with Google
+              </Button>
+            </div>
           </>
         )}
 

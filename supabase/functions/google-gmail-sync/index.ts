@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { getAccessToken } from "../_shared/google.ts";
+import { getGmailAccessToken } from "../_shared/google.ts";
 
 const TOKEN_ENCRYPTION_KEY = Deno.env.get("TOKEN_ENCRYPTION_KEY")!;
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
@@ -9,6 +9,38 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+// Maps system label IDs to Gmail search operators
+const SYSTEM_LABEL_QUERY: Record<string, string> = {
+  INBOX: "in:inbox",
+  SENT: "in:sent",
+  STARRED: "is:starred",
+  IMPORTANT: "is:important",
+  TRASH: "in:trash",
+  SPAM: "in:spam",
+};
+
+function buildGmailQuery(
+  syncLabels: string[] | null,
+  availableLabels: { id: string; name: string }[] | null,
+): string {
+  if (!syncLabels?.length) return "in:inbox";
+
+  const nameById: Record<string, string> = {};
+  for (const l of availableLabels ?? []) nameById[l.id] = l.name;
+
+  const parts: string[] = [];
+  for (const labelId of syncLabels) {
+    if (SYSTEM_LABEL_QUERY[labelId]) {
+      parts.push(SYSTEM_LABEL_QUERY[labelId]);
+    } else {
+      const name = nameById[labelId];
+      if (name) parts.push(`label:${name.replace(/\s+/g, "-")}`);
+    }
+  }
+
+  return parts.length ? parts.join(" OR ") : "in:inbox";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -73,7 +105,7 @@ Deno.serve(async (req: Request) => {
 });
 
 async function syncAccount(account: any): Promise<number> {
-  const accessToken = await getAccessToken(
+  const accessToken = await getGmailAccessToken(
     account,
     supabase,
     TOKEN_ENCRYPTION_KEY,
@@ -81,13 +113,9 @@ async function syncAccount(account: any): Promise<number> {
     GOOGLE_CLIENT_SECRET,
   );
 
-  let syncedCount = 0;
+  const query = buildGmailQuery(account.sync_labels, account.available_labels);
 
-  // Fetch last 50 inbox messages (full sync; history.list for incremental sync in future)
-  const params = new URLSearchParams({
-    q: "in:inbox",
-    maxResults: "50",
-  });
+  const params = new URLSearchParams({ q: query, maxResults: "50" });
 
   const listRes = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages?${params}`,
@@ -99,10 +127,10 @@ async function syncAccount(account: any): Promise<number> {
   }
 
   const listData = await listRes.json();
-
   const messageIds: string[] = listData.messages?.map((m: any) => m.id) ?? [];
 
-  // Fetch full message details
+  let syncedCount = 0;
+
   for (const msgId of messageIds) {
     const msgRes = await fetch(
       `https://www.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(msgId)}?format=full`,
@@ -129,7 +157,6 @@ async function syncAccount(account: any): Promise<number> {
       is_read: !msg.labelIds?.includes("UNREAD"),
       is_starred: msg.labelIds?.includes("STARRED") ?? false,
       labels: msg.labelIds ?? [],
-      updated_at: new Date().toISOString(),
     };
 
     const { error } = await supabase
@@ -139,12 +166,9 @@ async function syncAccount(account: any): Promise<number> {
     if (!error) syncedCount++;
   }
 
-  // Update last_synced_at
   await supabase
     .from("admin_gmail_accounts")
-    .update({
-      last_synced_at: new Date().toISOString(),
-    })
+    .update({ last_synced_at: new Date().toISOString() })
     .eq("id", account.id);
 
   return syncedCount;

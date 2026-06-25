@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, User, Mail, Phone, Building, StickyNote } from "lucide-react";
+import { Plus, Search, Trash2, User, Mail, Phone, Building, StickyNote, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   useContacts,
@@ -196,7 +197,7 @@ export function ContactsPage() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-full">
       {/* Left: contact list */}
       <div className="w-72 border-r border-border flex flex-col shrink-0">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -297,6 +298,11 @@ export function ContactsPage() {
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  <Link to={`/contacts/${selected.id}`}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" title="View full profile">
+                      <ExternalLink size={14} />
+                    </Button>
+                  </Link>
                   <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                     Edit
                   </Button>
