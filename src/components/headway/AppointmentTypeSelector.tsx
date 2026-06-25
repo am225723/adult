@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { IntakeQService, IntakeQLocation, IntakeQPractitioner } from "@/lib/patientqClient";
@@ -34,14 +34,19 @@ export function AppointmentTypeSelector({
   onSelect,
 }: AppointmentTypeSelectorProps) {
   const [serviceId, setServiceId] = useState("");
-  const [locationId, setLocationId] = useState(locations[0]?.Id ?? "");
-  const [practitionerId, setPractitionerId] = useState(practitioners[0]?.Id ?? "");
+  const [locationId, setLocationId] = useState("");
+  const [practitionerId, setPractitionerId] = useState("");
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime);
   const [reminderType, setReminderType] = useState<AppointmentSelection["reminderType"]>("Email");
   const [clientNote, setClientNote] = useState("");
 
-  const selectedService = services.find((s) => s.Id === serviceId);
+  useEffect(() => {
+    if (!locationId && locations.length > 0) setLocationId(locations[0].Id);
+  }, [locations, locationId]);
+  useEffect(() => {
+    if (!practitionerId && practitioners.length > 0) setPractitionerId(practitioners[0].Id);
+  }, [practitioners, practitionerId]);
 
   function buildUtcDateTime(): number | null {
     if (!date || !time) return null;

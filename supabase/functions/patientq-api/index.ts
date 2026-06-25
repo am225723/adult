@@ -47,24 +47,44 @@ function requireNumber(value: unknown, field: string): number {
   return value;
 }
 
-async function iq(path: string, options: RequestInit = {}) {
+async function iq(
+  path: string,
+  options: RequestInit = {},
+  opts: { allowNotFound?: boolean } = {},
+) {
   if (!INTAKEQ_API_KEY) {
     throw new IntakeQError(
       "IntakeQ API key not configured. Set INTAKEQ_API_KEY in Supabase Edge Function secrets.",
       503,
     );
   }
-  const res = await fetch(`${INTAKEQ_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Auth-Key": INTAKEQ_API_KEY,
-      ...(options.headers ?? {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let res: Response;
+  try {
+    res = await fetch(`${INTAKEQ_BASE}${path}`, {
+      ...options,
+      signal: options.signal ?? controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Auth-Key": INTAKEQ_API_KEY,
+        ...(options.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new IntakeQError("IntakeQ request timed out.", 504);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await res.text();
   if (res.status === 401) throw new IntakeQError("IntakeQ API key is invalid or expired.", 401);
-  if (res.status === 404) return null;
+  if (res.status === 404) {
+    if (opts.allowNotFound) return null;
+    throw new IntakeQError(`IntakeQ resource not found: ${path}`, 404);
+  }
   if (!res.ok) throw new IntakeQError(`IntakeQ error ${res.status}: ${text}`, res.status);
   return text ? JSON.parse(text) : null;
 }
@@ -141,14 +161,14 @@ async function getBookingSettings(): Promise<{
   Locations: IntakeQLocation[];
   Practitioners: IntakeQPractitioner[];
 }> {
-  const data = await iq("/appointments/settings");
+  const data = await iq("/appointments/settings", {}, { allowNotFound: true });
   return data ?? { Services: [], Locations: [], Practitioners: [] };
 }
 
 async function searchClient(search: string): Promise<IntakeQClient[]> {
-  requireString(search, "search");
-  const qs = new URLSearchParams({ search, includeProfile: "true" });
-  const data = await iq(`/clients?${qs}`);
+  const normalizedSearch = requireString(search, "search");
+  const qs = new URLSearchParams({ search: normalizedSearch, includeProfile: "true" });
+  const data = await iq(`/clients?${qs}`, {}, { allowNotFound: true });
   return (data ?? []) as IntakeQClient[];
 }
 
@@ -164,18 +184,18 @@ async function createOrUpdateClient(payload: {
   postalCode?: string;
   country?: string;
 }) {
-  requireString(payload.firstName, "firstName");
-  requireString(payload.lastName, "lastName");
-  requireString(payload.email, "email");
-  requireString(payload.phone, "phone");
+  const firstName = requireString(payload.firstName, "firstName");
+  const lastName = requireString(payload.lastName, "lastName");
+  const email = requireString(payload.email, "email");
+  const phone = requireString(payload.phone, "phone");
 
   const body: Record<string, unknown> = {
-    FirstName: payload.firstName,
-    LastName: payload.lastName,
-    Email: payload.email,
-    Phone: payload.phone,
+    FirstName: firstName,
+    LastName: lastName,
+    Email: email,
+    Phone: phone,
   };
-  if (payload.clientId) body.ClientId = payload.clientId;
+  if (payload.clientId != null) body.ClientId = payload.clientId;
   if (payload.streetAddress) body.StreetAddress = payload.streetAddress;
   if (payload.city) body.City = payload.city;
   if (payload.stateShort) body.StateShort = payload.stateShort;
@@ -199,7 +219,7 @@ async function getAppointments(params: {
   if (params.endDate) qs.set("endDate", params.endDate);
   if (params.status) qs.set("status", params.status);
   if (params.practitionerEmail) qs.set("practitionerEmail", params.practitionerEmail);
-  const data = await iq(`/appointments?${qs}`);
+  const data = await iq(`/appointments?${qs}`, {}, { allowNotFound: true });
   return (data ?? []) as IntakeQAppointment[];
 }
 

@@ -19,8 +19,8 @@ async function callEdgeFunction(action: string, payload?: Record<string, unknown
     },
   );
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? "IntakeQ API error");
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error ?? `IntakeQ API error (${res.status})`);
   return json;
 }
 

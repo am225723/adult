@@ -23,11 +23,12 @@ export function useFindExistingContact(email?: string, phone?: string) {
             .eq("primary_email", email.toLowerCase())
             .limit(5)
         : { data: [] as Contact[], error: null };
+      const normalizedPhone = phone?.replace(/\D/g, "") || phone;
       const byPhone = phone
         ? await supabase
             .from("admin_contacts")
             .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at")
-            .eq("primary_phone", phone)
+            .eq("primary_phone", normalizedPhone)
             .limit(5)
         : { data: [] as Contact[], error: null };
 
