@@ -341,7 +341,7 @@ function TimeGrid({
   }, []);
 
   return (
-    <div className="flex flex-col overflow-auto" style={{ maxHeight: "calc(100vh - 200px)" }}>
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       {/* Day headers */}
       <div className="sticky top-0 z-10 bg-background border-b border-border flex">
         <div className="w-14 shrink-0" />
@@ -1189,7 +1189,7 @@ export function CalendarPage() {
   });
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-full min-h-0">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
         {/* Today + nav */}

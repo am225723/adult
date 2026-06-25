@@ -1130,7 +1130,7 @@ export function TasksPage() {
   ) : null;
 
   return (
-    <div className="flex flex-col md:flex-row h-screen">
+    <div className="flex flex-col md:flex-row h-full">
       <ProjectsSidebar
         selectedProject={selectedProject}
         onSelect={(id) => {

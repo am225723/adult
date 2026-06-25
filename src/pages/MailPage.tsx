@@ -800,7 +800,7 @@ export function MailPage() {
   ];
 
   return (
-    <div className="flex flex-col md:flex-row h-screen">
+    <div className="flex flex-col md:flex-row h-full">
       <div className="flex-1 flex flex-col min-w-0">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">

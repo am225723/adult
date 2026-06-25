@@ -108,7 +108,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-background overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[100dvh] bg-background overflow-hidden">
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* Sidebar (desktop only) */}
@@ -269,7 +269,7 @@ export function AppLayout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto flex flex-col pb-14 md:pb-0">
+      <main className="flex-1 min-h-0 overflow-auto flex flex-col pb-14 md:pb-0">
         <Outlet />
       </main>
 
