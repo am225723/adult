@@ -9,6 +9,10 @@ import { useCreateTask } from "@/hooks/useTasks";
 import { toast } from "@/hooks/useToast";
 import { cn } from "@/lib/utils";
 import { TeamChat } from "@/components/TeamChat";
+import { HeadwayLinkCard } from "@/components/headway/HeadwayLinkCard";
+import { HeadwayWorkflowPanel } from "@/components/headway/HeadwayWorkflowPanel";
+import { useHeadwayWorkflow } from "@/hooks/useHeadwayWorkflow";
+import { extractHeadwayLinks } from "@/lib/headwayDetector";
 
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "unknown";
@@ -106,9 +110,11 @@ function ConversationRow({
 function ConversationDetail({
   conversation,
   onClose,
+  onStartIntake,
 }: {
   conversation: Conversation;
   onClose: () => void;
+  onStartIntake: (params: { headwayLink: string; senderName?: string; quoMessageId?: string }) => void;
 }) {
   const createTask = useCreateTask();
   const [creatingTask, setCreatingTask] = useState(false);
@@ -227,6 +233,17 @@ function ConversationDetail({
                 )}>
                   {msg.occurred_at ? relativeTime(msg.occurred_at) : "unknown"}
                 </p>
+                {/* Headway link detection */}
+                {msg.body && extractHeadwayLinks(msg.body).map((link) => (
+                  <HeadwayLinkCard
+                    key={link.url}
+                    url={link.url}
+                    senderName={conversation.contactName}
+                    quoMessageId={msg.id}
+                    onStartIntake={onStartIntake}
+                    className="mt-2"
+                  />
+                ))}
               </div>
             </div>
           );
@@ -280,6 +297,7 @@ export function ChatPage() {
   const { data: messages = [], isLoading, error } = usePhoneMessages("all");
   const { data: contacts = [] } = useContacts();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const headwayWorkflow = useHeadwayWorkflow();
 
   // Build a lookup map for contact display names
   const contactNameMap = new Map(contacts.map((c) => [c.id, c.display_name]));
@@ -308,6 +326,15 @@ export function ChatPage() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Headway workflow panel — z-[60] to sit above mobile conversation overlay (z-50) */}
+      <HeadwayWorkflowPanel
+        workflow={headwayWorkflow.workflow}
+        isOpen={headwayWorkflow.isOpen}
+        onClose={headwayWorkflow.closeWorkflow}
+        saveWorkflow={headwayWorkflow.saveWorkflow}
+        updateStatus={headwayWorkflow.updateStatus}
+      />
+
       {/* Tab bar */}
       <div className="flex items-center gap-0 border-b border-border px-4 shrink-0">
         <button
@@ -349,6 +376,7 @@ export function ChatPage() {
             selectedContactId={selectedContactId}
             setSelectedContactId={setSelectedContactId}
             selectedConversation={selectedConversation}
+            onStartIntake={headwayWorkflow.startWorkflow}
           />
         )}
       </div>
@@ -364,6 +392,7 @@ function SmsTab({
   selectedContactId,
   setSelectedContactId,
   selectedConversation,
+  onStartIntake,
 }: {
   messages: PhoneMessage[];
   isLoading: boolean;
@@ -372,6 +401,7 @@ function SmsTab({
   selectedContactId: string | null;
   setSelectedContactId: (id: string | null) => void;
   selectedConversation: Conversation | null;
+  onStartIntake: (params: { headwayLink: string; senderName?: string; quoMessageId?: string }) => void;
 }) {
   if (isLoading) return <LoadingSpinner message="Loading messages…" />;
 
@@ -422,6 +452,7 @@ function SmsTab({
           <ConversationDetail
             conversation={selectedConversation}
             onClose={() => setSelectedContactId(null)}
+            onStartIntake={onStartIntake}
           />
         </div>
       )}
@@ -432,6 +463,7 @@ function SmsTab({
           <ConversationDetail
             conversation={selectedConversation}
             onClose={() => setSelectedContactId(null)}
+            onStartIntake={onStartIntake}
           />
         </div>
       )}
