@@ -152,7 +152,10 @@ Deno.serve(async (req: Request) => {
         phoneNumberId: pn.id,
         maxResults: "50",
       });
-      if (msgRes.ok) {
+      if (!msgRes.ok) {
+        const errText = await msgRes.text();
+        console.error(`[quo-sync] messages fetch failed for ${pn.id}: ${msgRes.status} ${errText}`);
+      } else {
         const msgData = await msgRes.json();
         const messages: Array<{
           id: string;
@@ -163,9 +166,9 @@ Deno.serve(async (req: Request) => {
           createdAt: string;
         }> = msgData.data ?? [];
 
+        console.log(`[quo-sync] ${pn.number}: fetched ${messages.length} messages`);
+
         if (messages.length > 0) {
-          // Resolve contact_id from the external party's phone number so ChatPage
-          // can group conversations correctly (instead of everything → "Unknown").
           const externalPhones = messages.map((m) =>
             m.direction === "incoming" ? m.from : (m.to?.[0] ?? ""),
           );
@@ -180,20 +183,19 @@ Deno.serve(async (req: Request) => {
               external_id: m.id,
               direction: m.direction,
               body: m.body ?? "",
-              // Only set is_read on new rows; ignoreDuplicates preserves existing read state.
               is_read: m.direction === "outgoing",
               occurred_at: m.createdAt,
               contact_id: contactMap.get(externalPhone) ?? null,
             };
           });
 
-          // ignoreDuplicates: true — skip rows that already exist so their
-          // is_read state (potentially marked read by the user) is preserved.
           const { error: upsertErr } = await db
             .from("admin_phone_messages")
             .upsert(rows, { onConflict: "external_id", ignoreDuplicates: true });
-
-          if (upsertErr) throw upsertErr;
+          if (upsertErr) {
+            console.error(`[quo-sync] messages upsert error:`, upsertErr);
+            throw upsertErr;
+          }
           totalMessages += messages.length;
         }
       }
@@ -203,7 +205,10 @@ Deno.serve(async (req: Request) => {
         phoneNumberId: pn.id,
         maxResults: "50",
       });
-      if (callRes.ok) {
+      if (!callRes.ok) {
+        const errText = await callRes.text();
+        console.error(`[quo-sync] calls fetch failed for ${pn.id}: ${callRes.status} ${errText}`);
+      } else {
         const callData = await callRes.json();
         const calls: Array<{
           id: string;
@@ -215,6 +220,8 @@ Deno.serve(async (req: Request) => {
           createdAt: string;
           recording?: { transcript?: string; url?: string };
         }> = callData.data ?? [];
+
+        console.log(`[quo-sync] ${pn.number}: fetched ${calls.length} calls`);
 
         if (calls.length > 0) {
           const externalPhones = calls.map((c) =>
@@ -241,8 +248,10 @@ Deno.serve(async (req: Request) => {
           const { error: upsertErr } = await db
             .from("admin_phone_calls")
             .upsert(rows, { onConflict: "external_id", ignoreDuplicates: true });
-
-          if (upsertErr) throw upsertErr;
+          if (upsertErr) {
+            console.error(`[quo-sync] calls upsert error:`, upsertErr);
+            throw upsertErr;
+          }
           totalCalls += calls.length;
         }
       }
