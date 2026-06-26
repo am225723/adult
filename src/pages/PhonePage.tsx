@@ -440,14 +440,10 @@ export function PhonePage() {
               <p className="text-sm">Failed to load calls.</p>
             </div>
           ) : calls.length === 0 ? (
-            filter === "missed" ? (
-              <ConnectPrompt />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
-                <Phone size={24} strokeWidth={1.25} />
-                <p className="text-sm">No calls found.</p>
-              </div>
-            )
+            <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
+              <Phone size={24} strokeWidth={1.25} />
+              <p className="text-sm">{filter === "missed" ? "No missed calls." : "No calls found."}</p>
+            </div>
           ) : (
             calls.map((call) => (
               <CallRow
