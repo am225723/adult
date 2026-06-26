@@ -22,6 +22,7 @@ import {
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuoSync } from "@/hooks/useQuoSync";
 import { usePhoneCalls, type PhoneCall } from "@/hooks/usePhoneCalls";
 import { useContact } from "@/hooks/useContact";
 import { useCreateTask } from "@/hooks/useTasks";
@@ -393,6 +394,7 @@ export function PhonePage() {
   const [filter, setFilter] = useState<CallFilter>("missed");
   const [selectedCall, setSelectedCall] = useState<PhoneCall | null>(null);
   const [smsToNumber, setSmsToNumber] = useState<string | null>(null);
+  useQuoSync();
   const { data: calls = [], isLoading, error } = usePhoneCalls(filter);
 
   const TABS: { key: CallFilter; label: string }[] = [
