@@ -220,7 +220,7 @@ function CallRow({
   );
 }
 
-function CallDetail({
+function CallDetailPanel({
   call,
   onClose,
   onSendSms,
