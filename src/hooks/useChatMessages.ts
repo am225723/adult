@@ -56,9 +56,13 @@ export function useChatMessages(threadId: string | null) {
       },
     );
 
-    channel.subscribe();
+    channel.subscribe((status, err) => {
+      if (err) {
+        console.error("Realtime subscription error:", err);
+      }
+    });
     return () => { supabase.removeChannel(channel); };
-  }, [threadId, user, queryClient]);
+  }, [threadId, user?.id, queryClient]);
 
   return query;
 }

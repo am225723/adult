@@ -31,7 +31,7 @@ The Adulting clinical workspace app now features an "Elevated" design system wit
 #### Warning Orange (Medium Priority)
 - **HSL**: `31 85% 55%`
 - **Hex**: `#ff9a4a`
-- **Usage**: Medium priority tasks, upcoming deadlines, reminders
+- **Usage**: Medium-priority tasks, upcoming deadlines, reminders
 - **Purpose**: Requires attention but not urgent
 
 #### Success Green (Completed/Normal)
@@ -96,7 +96,7 @@ The Adulting clinical workspace app now features an "Elevated" design system wit
 ### Buttons
 
 #### Primary Button
-```
+```text
 Background: Forest Green (#2d5740)
 Text: White
 Padding: 12px 20px (default)
@@ -107,14 +107,14 @@ Active: Scale down (95%)
 ```
 
 #### Secondary Button
-```
+```text
 Background: Medium Green (#3d7a52)
 Text: White
 Similar sizing and spacing to primary
 ```
 
 #### Outline Button
-```
+```text
 Background: Transparent
 Border: 1px solid input color
 Text: Foreground
@@ -122,7 +122,7 @@ Hover: Light primary background
 ```
 
 #### Destructive Button
-```
+```text
 Background: Clinical Red (#c84a2c)
 Text: White
 Used for: Delete, cancel, urgent actions
@@ -244,7 +244,7 @@ Use Tailwind utility classes directly:
 
 ### Task Item with Priority
 
-```
+```text
 ┌─ High Priority (Red border)
 │ ├─ [✓] Call Patient A (Follow-up)
 │ ├─ PHONE | Today, 2:30 PM
@@ -259,7 +259,7 @@ Normal Task (Green tint)
 
 ### Calendar Event
 
-```
+```text
 Week View
 Mon | Tue | Wed | Thu | Fri
 -----|-----|-----|-----|-----

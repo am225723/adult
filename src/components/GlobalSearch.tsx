@@ -180,13 +180,20 @@ export function GlobalSearch({ open, onClose }: Props) {
       // Hide rest of page from assistive tech
       const root = document.getElementById("root");
       if (root) {
-        const backdrop = root.querySelector('[role="dialog"]')?.parentElement;
-        if (backdrop) {
-          // Mark the rest of the page as hidden
-          const siblings = Array.from(root.children).filter(child => child !== backdrop);
-          siblings.forEach(sibling => {
-            (sibling as HTMLElement).inert = true;
-          });
+        const dialog = root.querySelector('[role="dialog"]');
+        if (dialog) {
+          // Find the ancestor that is a direct child of root
+          let backdrop = dialog.parentElement;
+          while (backdrop && backdrop.parentElement !== root) {
+            backdrop = backdrop.parentElement;
+          }
+          if (backdrop) {
+            // Mark the rest of the page as hidden
+            const siblings = Array.from(root.children).filter(child => child !== backdrop);
+            siblings.forEach(sibling => {
+              (sibling as HTMLElement).inert = true;
+            });
+          }
         }
       }
     } else {

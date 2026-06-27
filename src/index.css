@@ -35,13 +35,14 @@
     --destructive-foreground: 0 0% 100%;
 
     --warning: 31 85% 55%;            /* #ff9a4a medium priority orange */
+    --warning-foreground: 0 0% 100%;
 
     /* Structure */
     --border: 165 16% 76%;
     --input: 165 16% 76%;
     --ring: 140 45% 25%;              /* focus ring — forest green */
 
-    --radius: 1rem;                   /* 16px base per design system */
+    --radius: 0.5rem;                 /* 8px base — rounded-lg per design system */
 
     /* Sidebar */
     --sidebar-background: 140 45% 20%;
@@ -78,6 +79,7 @@
     --destructive-foreground: 0 0% 100%;
 
     --warning: 31 85% 65%;
+    --warning-foreground: 0 0% 100%;
 
     --border: 140 25% 25%;
     --input: 140 25% 25%;
