@@ -114,16 +114,16 @@ export function AppLayout() {
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* Sidebar (desktop only) */}
-      <aside className="hidden md:flex w-14 flex-col items-center py-4 gap-1 bg-sidebar border-r border-sidebar-border shrink-0">
+      <aside className="hidden md:flex w-16 flex-col items-center py-4 gap-2 bg-sidebar border-r border-sidebar-border shrink-0">
         {/* Workspace switcher / App mark */}
         {workspaces.length > 1 ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 hover:opacity-80 transition-opacity overflow-hidden"
+                className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 shrink-0 hover:bg-sidebar-accent/50 transition-all overflow-hidden"
                 title={selectedWorkspace?.name ?? "Switch workspace"}
               >
-                <img src="/whitelogo.png" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
+                <img src="/whitelogo.png" alt="Integrative Psychiatry" className="w-8 h-8 object-contain" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="start" className="w-52">
@@ -148,10 +148,10 @@ export function AppLayout() {
           </DropdownMenu>
         ) : (
           <div
-            className="w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 overflow-hidden"
+            className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 shrink-0 overflow-hidden"
             title={selectedWorkspace?.name}
           >
-            <img src="/whitelogo.png" alt="Integrative Psychiatry" className="w-10 h-10 object-contain" />
+            <img src="/whitelogo.png" alt="Integrative Psychiatry" className="w-8 h-8 object-contain" />
           </div>
         )}
 
@@ -159,13 +159,13 @@ export function AppLayout() {
         <button
           onClick={() => setSearchOpen(true)}
           title="Search (⌘K)"
-          className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground mb-1"
+          className="w-10 h-10 flex items-center justify-center rounded-xl transition-all text-sidebar-foreground hover:bg-sidebar-accent mb-1"
         >
-          <Search size={17} strokeWidth={1.75} />
+          <Search size={18} strokeWidth={1.75} />
         </button>
 
         {/* Nav items */}
-        <nav className="flex flex-col items-center gap-0.5 flex-1">
+        <nav className="flex flex-col items-center gap-1 flex-1">
           {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
@@ -173,32 +173,35 @@ export function AppLayout() {
               title={label}
               className={({ isActive }) =>
                 cn(
-                  "w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  "w-10 h-10 flex items-center justify-center rounded-xl transition-all text-sidebar-foreground hover:bg-sidebar-accent",
                   isActive &&
                     "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                 )
               }
             >
-              <Icon size={17} strokeWidth={1.75} />
+              <Icon size={18} strokeWidth={1.75} />
             </NavLink>
           ))}
         </nav>
 
         {/* Bottom controls */}
         <div className="flex flex-col items-center gap-1 mt-auto">
+          {/* Notification center */}
+          <NotificationCenter />
+
           {/* Theme toggle */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="w-9 h-9 flex items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-sidebar-foreground hover:bg-sidebar-accent transition-all"
                 title="Toggle theme"
               >
                 {theme === "dark" ? (
-                  <Moon size={16} strokeWidth={1.75} />
+                  <Moon size={18} strokeWidth={1.75} />
                 ) : theme === "light" ? (
-                  <Sun size={16} strokeWidth={1.75} />
+                  <Sun size={18} strokeWidth={1.75} />
                 ) : (
-                  <Monitor size={16} strokeWidth={1.75} />
+                  <Monitor size={18} strokeWidth={1.75} />
                 )}
               </button>
             </DropdownMenuTrigger>
@@ -215,30 +218,27 @@ export function AppLayout() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Notification center */}
-          <NotificationCenter />
-
           {/* Settings */}
           <NavLink
             to="/settings"
             title="Settings"
             className={({ isActive }) =>
               cn(
-                "w-9 h-9 flex items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
+                "w-10 h-10 flex items-center justify-center rounded-xl text-sidebar-foreground hover:bg-sidebar-accent transition-all",
                 isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
               )
             }
           >
-            <Settings size={16} strokeWidth={1.75} />
+            <Settings size={18} strokeWidth={1.75} />
           </NavLink>
 
           {/* User avatar / account menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-sidebar-accent transition-colors">
-                <Avatar className="w-6 h-6">
+              <button className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-sidebar-accent transition-all">
+                <Avatar className="w-8 h-8">
                   <AvatarImage src={avatarUrl} />
-                  <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+                  <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
                 </Avatar>
               </button>
             </DropdownMenuTrigger>
@@ -276,43 +276,43 @@ export function AppLayout() {
       </main>
 
       {/* Bottom navigation (mobile only) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-sidebar border-t border-sidebar-border flex items-center justify-around px-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-sidebar-border flex items-center justify-around px-1">
         {/* Search button (mobile) */}
         <button
           onClick={() => setSearchOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+          className="flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-xl text-sidebar-foreground hover:bg-sidebar-accent transition-all"
         >
-          <Search size={20} strokeWidth={1.75} />
-          <span className="text-[10px] font-medium">Search</span>
+          <Search size={22} strokeWidth={1.75} />
+          <span className="text-[9px] font-semibold">Search</span>
         </button>
 
-        {NAV_ITEMS.slice(0, 5).map(({ to, icon: Icon, label }) => (
+        {NAV_ITEMS.slice(0, 4).map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             title={label}
             className={({ isActive }) =>
               cn(
-                "flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-lg transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                "flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-xl transition-all text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 isActive &&
-                  "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                  "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
               )
             }
           >
-            <Icon size={20} strokeWidth={1.75} />
-            <span className="text-[10px] font-medium truncate">{label}</span>
+            <Icon size={22} strokeWidth={1.75} />
+            <span className="text-[9px] font-semibold truncate">{label}</span>
           </NavLink>
         ))}
 
         {/* More menu (mobile) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex flex-col items-center justify-center gap-0.5 w-12 h-12 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
-              <Settings size={20} strokeWidth={1.75} />
-              <span className="text-[10px] font-medium">More</span>
+            <button className="flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-xl text-sidebar-foreground hover:bg-sidebar-accent transition-all">
+              <Settings size={22} strokeWidth={1.75} />
+              <span className="text-[9px] font-semibold">More</span>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="end" className="w-48 mb-1">
+          <DropdownMenuContent side="top" align="end" className="w-48 mb-2">
             <DropdownMenuLabel className="font-normal">
               <p className="text-sm font-medium truncate">{displayName}</p>
               <p className="text-xs truncate text-muted-foreground">{user.email}</p>
