@@ -37,6 +37,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useMyAdminUser } from "@/hooks/useWorkspaceUsers";
+import { FloatingChatBubble } from "@/components/FloatingChatBubble";
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Today" },
@@ -357,6 +358,9 @@ export function AppLayout() {
           </DropdownMenuContent>
         </DropdownMenu>
       </nav>
+
+      {/* Floating chat bubble */}
+      <FloatingChatBubble />
     </div>
   );
 }
