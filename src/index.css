@@ -17,72 +17,76 @@
     --popover-foreground: 171 35% 9%;
 
     /* Brand colors — from design system */
-    --primary: 163 52% 32%;           /* #25695d teal primary */
+    --primary: 140 45% 25%;           /* #2d5740 forest green primary */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 163 100% 27%;        /* #006d3c green secondary */
+    --secondary: 140 60% 35%;         /* #3d7a52 medium green secondary */
     --secondary-foreground: 0 0% 100%;
 
     /* Neutral tones */
     --muted: 165 29% 89%;
     --muted-foreground: 168 16% 30%;
 
-    --accent: 163 52% 32%;
+    --accent: 140 45% 25%;
     --accent-foreground: 0 0% 100%;
 
-    /* Error */
-    --destructive: 0 75% 50%;         /* #ba1a1a clinic red */
+    /* Error & Priority Colors */
+    --destructive: 14 78% 50%;        /* #c84a2c urgent red */
     --destructive-foreground: 0 0% 100%;
+
+    --warning: 31 85% 55%;            /* #ff9a4a medium priority orange */
 
     /* Structure */
     --border: 165 16% 76%;
     --input: 165 16% 76%;
-    --ring: 163 52% 32%;              /* focus ring — teal */
+    --ring: 140 45% 25%;              /* focus ring — forest green */
 
     --radius: 1rem;                   /* 16px base per design system */
 
     /* Sidebar */
-    --sidebar-background: 171 25% 13%;
+    --sidebar-background: 140 45% 20%;
     --sidebar-foreground: 165 29% 92%;
-    --sidebar-border: 171 22% 20%;
-    --sidebar-accent: 163 52% 32%;
+    --sidebar-border: 140 45% 25%;
+    --sidebar-accent: 140 45% 35%;
     --sidebar-accent-foreground: 0 0% 100%;
   }
 
   .dark {
     /* Integrative Psychiatry Clinical Workspace — Dark Mode */
-    --background: 171 33% 13%;
-    --foreground: 165 29% 92%;        /* #e5f4eb light text */
+    --background: 140 30% 15%;
+    --foreground: 140 20% 90%;        /* light text */
 
-    --card: 171 33% 17%;
-    --card-foreground: 165 29% 92%;
+    --card: 140 30% 20%;
+    --card-foreground: 140 20% 90%;
 
-    --popover: 171 33% 17%;
-    --popover-foreground: 165 29% 92%;
+    --popover: 140 30% 20%;
+    --popover-foreground: 140 20% 90%;
 
-    --primary: 163 52% 62%;
-    --primary-foreground: 171 33% 13%;
+    --primary: 140 60% 60%;
+    --primary-foreground: 140 30% 15%;
 
-    --secondary: 163 100% 52%;
+    --secondary: 140 70% 50%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 171 25% 22%;
-    --muted-foreground: 165 18% 58%;
+    --muted: 140 20% 30%;
+    --muted-foreground: 140 15% 60%;
 
-    --accent: 163 52% 62%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 140 60% 60%;
+    --accent-foreground: 140 30% 15%;
 
-    --destructive: 0 72% 55%;
+    --destructive: 14 78% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 171 25% 24%;
-    --input: 171 25% 24%;
-    --ring: 163 52% 62%;
+    --warning: 31 85% 65%;
 
-    --sidebar-background: 171 33% 11%;
-    --sidebar-foreground: 165 29% 85%;
-    --sidebar-border: 171 25% 20%;
-    --sidebar-accent: 163 52% 32%;
+    --border: 140 25% 25%;
+    --input: 140 25% 25%;
+    --ring: 140 60% 60%;
+
+    --sidebar-background: 140 30% 12%;
+    --sidebar-foreground: 140 20% 85%;
+    --sidebar-border: 140 25% 20%;
+    --sidebar-accent: 140 60% 50%;
     --sidebar-accent-foreground: 0 0% 100%;
   }
 }
