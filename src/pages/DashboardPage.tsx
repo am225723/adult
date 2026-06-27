@@ -93,15 +93,18 @@ export function DashboardPage() {
   const overdueCount = overdueTasks.length;
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-10 space-y-10 animate-fade-in">
-      {/* Header */}
-      <div className="space-y-0.5">
-        <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
-          {todayLabel()}
+    <div className="max-w-6xl mx-auto px-6 py-8 space-y-8 animate-fade-in">
+      {/* Command Center Header */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+            <img src="/whitelogo.png" alt="Command Center" className="w-6 h-6" />
+          </div>
+          <h1 className="text-2xl font-bold text-primary font-display">Command Center</h1>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {greeting()}, {name}. Here's what's on your plate today.
         </p>
-        <h1 className="text-2xl font-semibold text-foreground">
-          {greeting()}, {name}.
-        </h1>
       </div>
 
       {/* Overdue tasks alert */}
@@ -223,19 +226,21 @@ export function DashboardPage() {
       {/* Sections */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Up next */}
-        <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3 hover:border-border/80 transition-all hover:shadow-md">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CalendarDays
-                size={14}
-                strokeWidth={1.75}
-                className="text-muted-foreground"
-              />
-              <h2 className="text-sm font-medium text-foreground">Up next</h2>
+              <div className="w-5 h-5 rounded-md bg-primary/20 flex items-center justify-center">
+                <CalendarDays
+                  size={13}
+                  strokeWidth={2}
+                  className="text-primary"
+                />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground">Up next</h2>
             </div>
             <Link
               to="/calendar"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
             >
               View all
             </Link>
@@ -289,19 +294,21 @@ export function DashboardPage() {
         </div>
 
         {/* Focus tasks */}
-        <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3 hover:border-border/80 transition-all hover:shadow-md">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CheckSquare
-                size={14}
-                strokeWidth={1.75}
-                className="text-muted-foreground"
-              />
-              <h2 className="text-sm font-medium text-foreground">Focus tasks</h2>
+              <div className="w-5 h-5 rounded-md bg-primary/20 flex items-center justify-center">
+                <CheckSquare
+                  size={13}
+                  strokeWidth={2}
+                  className="text-primary"
+                />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground">Focus tasks</h2>
             </div>
             <Link
               to="/tasks"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
             >
               View all
             </Link>
@@ -411,14 +418,16 @@ function SummaryCard({
   urgent?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3 hover:border-border/80 transition-all hover:shadow-md">
       <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon size={14} strokeWidth={1.75} />
-        <span className="text-xs font-medium">{label}</span>
+        <div className={cn("w-5 h-5 rounded-md flex items-center justify-center", urgent ? "bg-destructive/20" : "bg-primary/20")}>
+          <Icon size={13} strokeWidth={2} className={urgent ? "text-destructive" : "text-primary"} />
+        </div>
+        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
       </div>
       <p
         className={cn(
-          "text-2xl font-semibold leading-none",
+          "text-3xl font-bold leading-none font-display",
           urgent ? "text-destructive" : "text-foreground",
         )}
       >
@@ -427,7 +436,7 @@ function SummaryCard({
       {sublabel && (
         <p
           className={cn(
-            "text-xs",
+            "text-xs font-medium",
             urgent ? "text-destructive/70" : "text-muted-foreground",
           )}
         >
@@ -454,16 +463,18 @@ function Section({
   viewAllTo?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3 hover:border-border/80 transition-all hover:shadow-md">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Icon size={14} strokeWidth={1.75} className="text-muted-foreground" />
-          <h2 className="text-sm font-medium text-foreground">{title}</h2>
+          <div className="w-5 h-5 rounded-md bg-primary/20 flex items-center justify-center">
+            <Icon size={13} strokeWidth={2} className="text-primary" />
+          </div>
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         </div>
         {viewAllTo && items.length > 0 && (
           <Link
             to={viewAllTo}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
           >
             View all
           </Link>
