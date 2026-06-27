@@ -186,7 +186,7 @@ export function DashboardPage() {
         </div>
 
         {allDayEvents.length === 0 && upcomingEvents.length === 0 ? (
-          <div className="rounded-lg bg-card border border-border/30 p-6 text-center">
+          <div className="rounded-xl bg-card/50 border border-border/20 p-6 text-center backdrop-blur-sm">
             <p className="text-muted-foreground">No events today</p>
           </div>
         ) : (
@@ -195,7 +195,7 @@ export function DashboardPage() {
               <Link
                 key={e.id}
                 to={`/calendar?event=${e.id}`}
-                className="block rounded-lg bg-card border border-border/30 p-4 hover:shadow-md transition-all"
+                className="block rounded-lg bg-card/50 border border-border/20 p-4 hover:shadow-lg hover:border-border/40 transition-all backdrop-blur-sm"
               >
                 <p className="font-medium text-foreground">{e.title}</p>
                 <p className="text-sm text-muted-foreground">All day</p>
@@ -208,7 +208,7 @@ export function DashboardPage() {
                 <Link
                   key={e.id}
                   to={`/calendar?event=${e.id}`}
-                  className="block rounded-lg bg-card border border-border/30 p-4 hover:shadow-md transition-all"
+                  className="block rounded-lg bg-card/50 border border-border/20 p-4 hover:shadow-lg hover:border-border/40 transition-all backdrop-blur-sm"
                 >
                   <p className="font-medium text-foreground">{e.title}</p>
                   <p className="text-sm text-muted-foreground">
@@ -226,7 +226,7 @@ export function DashboardPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* Focus Tasks */}
-            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3 hover:border-border/80 transition-all hover:shadow-md">
+            <div className="rounded-xl border border-border/20 bg-card/50 backdrop-blur-sm p-5 space-y-3 hover:border-border/40 transition-all hover:shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-md bg-primary/20 flex items-center justify-center">
@@ -353,10 +353,10 @@ function StatCard({
 }) {
   return (
     <div className={cn(
-      "rounded-lg border p-6 transition-all",
+      "rounded-xl border p-6 transition-all cursor-pointer",
       highlight
-        ? "bg-card border-destructive/30 shadow-sm hover:shadow-md"
-        : "bg-card border-border/30 shadow-sm hover:shadow-md"
+        ? "bg-gradient-to-br from-destructive/5 to-destructive/2 border-destructive/20 shadow-sm hover:shadow-lg hover:border-destructive/30"
+        : "bg-gradient-to-br from-card to-card/50 border-border/20 shadow-sm hover:shadow-lg hover:border-border/40"
     )}>
       <p className={cn(
         "text-4xl sm:text-5xl font-bold font-display",
@@ -385,7 +385,7 @@ function Section({
   viewAllTo?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3 hover:border-border/80 transition-all hover:shadow-md">
+    <div className="rounded-xl border border-border/20 bg-card/50 backdrop-blur-sm p-5 space-y-3 hover:border-border/40 transition-all hover:shadow-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-md bg-primary/20 flex items-center justify-center">

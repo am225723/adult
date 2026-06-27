@@ -327,11 +327,11 @@ export function ContactsPage() {
     <div className="flex h-full">
       {/* Left: contact list */}
       <div className="w-72 border-r border-border flex flex-col shrink-0">
-        {/* Header */}
-        <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between gap-2">
+        {/* Header with workspace name and title */}
+        <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-lg font-bold font-display text-primary">Contacts</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Manage your network</p>
+            <h2 className="text-xs font-medium text-muted-foreground mb-1">Elevated Contacts</h2>
+            <h1 className="text-lg font-semibold text-foreground">Directory</h1>
           </div>
           <div className="flex gap-1 shrink-0">
             <Button

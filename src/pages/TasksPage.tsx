@@ -14,6 +14,8 @@ import {
   Tag,
   X,
   UserCircle,
+  Search,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -480,9 +482,9 @@ function TaskRow({
     <div className={cn("group", depth > 0 && "ml-6 border-l border-border pl-3")}>
       <div
         className={cn(
-          "flex items-start gap-2 py-1.5 px-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer",
+          "flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-card border border-transparent hover:border-border/50 transition-all cursor-pointer",
           isDone && "opacity-50",
-          isSelected && "bg-muted",
+          isSelected && "bg-muted border-border/50",
         )}
         onClick={() => onSelect(task)}
       >
@@ -1067,6 +1069,7 @@ export function TasksPage() {
   const [selectedProject, setSelectedProject] = useState<string | undefined>();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { data: tasks = [], isLoading } = useTasks(tab, selectedProject);
   const { data: workspaceUsers = [] } = useWorkspaceUsers();
   const createTask = useCreateTask();
@@ -1075,6 +1078,13 @@ export function TasksPage() {
     () => new Map(workspaceUsers.map((u) => [u.id, u])),
     [workspaceUsers],
   );
+
+  // Filter tasks by search query
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks;
+    const q = searchQuery.toLowerCase();
+    return tasks.filter((t) => t.title.toLowerCase().includes(q));
+  }, [tasks, searchQuery]);
 
   // Parse initial tab from URL params
   useEffect(() => {
@@ -1140,31 +1150,59 @@ export function TasksPage() {
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="px-6 py-6 border-b border-border/50 shrink-0">
-          <h1 className="text-2xl font-bold text-primary font-display mb-1">Tasks</h1>
-          <p className="text-sm text-muted-foreground">Manage patient follow-ups and daily clinical duties.</p>
+        {/* Header with icon and title */}
+        <div className="px-6 py-4 border-b border-border/50 shrink-0 flex items-center gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-foreground">Task Management</h1>
+              <button className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <Bell size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-4 py-3 border-b border-border/50 shrink-0">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tasks…"
+              className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-muted border border-border text-sm outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground"
+            />
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-0.5 px-4 pt-4 pb-2 border-b border-border/50 shrink-0">
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => {
-                setTab(key);
-                setSelectedTask(null);
-              }}
-              className={cn(
-                "px-3 py-1.5 text-sm font-semibold rounded-lg transition-all",
-                tab === key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-primary/10",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 shrink-0 overflow-x-auto">
+          {TABS.map(({ key, label }) => {
+            const isActive = tab === key;
+            const isBadged = key === "overdue";
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  setTab(key);
+                  setSelectedTask(null);
+                }}
+                className={cn(
+                  "px-3 py-1.5 text-sm font-medium rounded-lg transition-all whitespace-nowrap flex items-center gap-2",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-primary/10",
+                )}
+              >
+                {label}
+                {isBadged && isActive && (
+                  <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-red-600 text-xs font-bold text-white">
+                    •
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Quick capture */}
@@ -1173,16 +1211,24 @@ export function TasksPage() {
         )}
 
         {/* Task list */}
-        <div className="flex-1 overflow-auto py-2">
+        <div className="flex-1 overflow-auto py-2 px-2">
           {isLoading ? (
             <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
               Loading…
             </div>
           ) : tasks.length === 0 ? (
             <EmptyState tab={tab} />
+          ) : filteredTasks.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <Search size={32} strokeWidth={1.25} className="text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">No tasks found</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Try adjusting your search query.</p>
+              </div>
+            </div>
           ) : (
-            <div className="space-y-0.5">
-              {tasks.map((task) => (
+            <div className="space-y-1">
+              {filteredTasks.map((task) => (
                 <TaskRow
                   key={task.id}
                   task={task}
@@ -1208,6 +1254,20 @@ export function TasksPage() {
         <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex flex-col animate-in fade-in slide-in-from-bottom">
           {rightPanel}
         </div>
+      )}
+
+      {/* Floating action button for new task */}
+      {!selectedTask && !newTaskOpen && (
+        <button
+          onClick={() => {
+            setNewTaskOpen(true);
+            setSelectedTask(null);
+          }}
+          className="fixed bottom-20 md:bottom-8 right-6 md:right-8 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center z-40"
+          title="New task"
+        >
+          <Plus size={24} />
+        </button>
       )}
     </div>
   );
