@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Search, Trash2, User, Mail, Phone, Building, StickyNote, ExternalLink } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Search, Trash2, User, Mail, Phone, Building, StickyNote, ExternalLink, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
@@ -9,6 +9,7 @@ import {
   useCreateContact,
   useUpdateContact,
   useDeleteContact,
+  useBulkImportContacts,
   type Contact,
 } from "@/hooks/useContacts";
 import { toast } from "@/hooks/useToast";
@@ -132,16 +133,142 @@ function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "lg" }) {
   );
 }
 
+function ImportDialog({
+  onClose,
+  onImport,
+  importing,
+}: {
+  onClose: () => void;
+  onImport: (contacts: Array<{
+    display_name: string;
+    primary_email?: string | null;
+    primary_phone?: string | null;
+    company?: string | null;
+    notes?: string | null;
+  }>) => Promise<void>;
+  importing: boolean;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<Array<{
+    display_name: string;
+    primary_email?: string | null;
+    primary_phone?: string | null;
+    company?: string | null;
+    notes?: string | null;
+  }> | null>(null);
+
+  function parseCSV(text: string) {
+    const lines = text.trim().split("\n");
+    if (lines.length < 2) { toast({ variant: "destructive", title: "CSV must have headers and at least one row" }); return; }
+
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const contacts = lines.slice(1).map((line) => {
+      const values = line.split(",").map((v) => v.trim());
+      return {
+        display_name: values[headers.indexOf("name")] || values[headers.indexOf("display_name")] || "",
+        primary_email: values[headers.indexOf("email")] || values[headers.indexOf("primary_email")] || null,
+        primary_phone: values[headers.indexOf("phone")] || values[headers.indexOf("primary_phone")] || null,
+        company: values[headers.indexOf("company")] || null,
+        notes: values[headers.indexOf("notes")] || null,
+      };
+    }).filter((c) => c.display_name.trim());
+
+    if (contacts.length === 0) { toast({ variant: "destructive", title: "No valid contacts found" }); return; }
+    setPreview(contacts);
+  }
+
+  function handleFileSelect(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      parseCSV(text);
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleImport() {
+    if (!preview || preview.length === 0) return;
+    try {
+      await onImport(preview);
+      toast({ title: `Imported ${preview.length} contacts` });
+      onClose();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Import failed", description: String(err) });
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Import Contacts</h2>
+          <button onClick={onClose} className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:bg-muted">
+            <X size={14} />
+          </button>
+        </div>
+
+        {!preview ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Upload a CSV file with columns: Name, Email, Phone, Company, Notes</p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors"
+            >
+              <Upload size={24} className="mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">Click to select CSV file</p>
+              <p className="text-xs text-muted-foreground mt-1">or drag and drop</p>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileSelect(file);
+              }}
+              className="hidden"
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="bg-muted/50 rounded-lg p-3 max-h-48 overflow-y-auto">
+              <p className="text-xs font-medium text-foreground mb-2">{preview.length} contacts to import:</p>
+              <div className="space-y-1">
+                {preview.slice(0, 5).map((c, i) => (
+                  <p key={i} className="text-xs text-muted-foreground truncate">{c.display_name}</p>
+                ))}
+                {preview.length > 5 && (
+                  <p className="text-xs text-muted-foreground">+{preview.length - 5} more</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="flex-1" onClick={handleImport} disabled={importing}>
+                {importing ? "Importing…" : `Import ${preview.length}`}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPreview(null)} disabled={importing}>
+                Back
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ContactsPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Contact | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const { data: contacts = [], isLoading } = useContacts(search);
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+  const bulkImport = useBulkImportContacts();
 
   async function handleCreate(form: ContactFormData) {
     try {
@@ -201,24 +328,35 @@ export function ContactsPage() {
       {/* Left: contact list */}
       <div className="w-72 border-r border-border flex flex-col shrink-0">
         {/* Header */}
-        <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between">
+        <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between gap-2">
           <div>
             <h1 className="text-lg font-bold font-display text-primary">Contacts</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Manage your network</p>
           </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 shrink-0"
-            onClick={() => {
-              setShowAdd(true);
-              setEditing(false);
-              setSelected(null);
-            }}
-            title="New contact"
-          >
-            <Plus size={14} />
-          </Button>
+          <div className="flex gap-1 shrink-0">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={() => setShowImport(true)}
+              title="Import contacts"
+            >
+              <Upload size={14} />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={() => {
+                setShowAdd(true);
+                setEditing(false);
+                setSelected(null);
+              }}
+              title="New contact"
+            >
+              <Plus size={14} />
+            </Button>
+          </div>
         </div>
 
         <div className="px-3 py-2 border-b border-border">
@@ -401,6 +539,15 @@ export function ContactsPage() {
           </div>
         )}
       </div>
+
+      {/* Import dialog */}
+      {showImport && (
+        <ImportDialog
+          onClose={() => setShowImport(false)}
+          onImport={bulkImport.mutateAsync}
+          importing={bulkImport.isPending}
+        />
+      )}
     </div>
   );
 }
