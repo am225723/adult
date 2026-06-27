@@ -13,8 +13,6 @@ import { HeadwayLinkCard } from "@/components/headway/HeadwayLinkCard";
 import { HeadwayWorkflowPanel } from "@/components/headway/HeadwayWorkflowPanel";
 import { useHeadwayWorkflow } from "@/hooks/useHeadwayWorkflow";
 import { extractHeadwayLinks } from "@/lib/headwayDetector";
-import { useQuoSync } from "@/hooks/useQuoSync";
-
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "unknown";
   const d = new Date(iso);
@@ -295,7 +293,6 @@ type Tab = "sms" | "team";
 
 export function ChatPage() {
   const [activeTab, setActiveTab] = useState<Tab>("sms");
-  useQuoSync();
   const { data: messages = [], isLoading, error } = usePhoneMessages("all");
   const { data: contacts = [] } = useContacts();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
