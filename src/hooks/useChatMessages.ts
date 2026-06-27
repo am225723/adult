@@ -33,35 +33,38 @@ export function useChatMessages(threadId: string | null) {
 
   useEffect(() => {
     if (!threadId || !user) return;
-    const channel = supabase.channel(`chat-messages-${threadId}`);
 
-    channel.on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "admin_chat_messages",
-        filter: `thread_id=eq.${threadId}`,
-      },
-      (payload) => {
-        queryClient.setQueryData<ChatMessage[]>(
-          ["chat-messages", threadId],
-          (old) => {
-            const existing = old ?? [];
-            const incoming = payload.new as ChatMessage;
-            if (existing.some((m) => m.id === incoming.id)) return existing;
-            return [...existing, incoming];
-          },
-        );
-      },
-    );
+    const channel = supabase
+      .channel(`chat-messages-${threadId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "admin_chat_messages",
+          filter: `thread_id=eq.${threadId}`,
+        },
+        (payload) => {
+          queryClient.setQueryData<ChatMessage[]>(
+            ["chat-messages", threadId],
+            (old) => {
+              const existing = old ?? [];
+              const incoming = payload.new as ChatMessage;
+              if (existing.some((m) => m.id === incoming.id)) return existing;
+              return [...existing, incoming];
+            },
+          );
+        },
+      )
+      .subscribe((status, err) => {
+        if (err) {
+          console.error("Realtime subscription error:", err);
+        }
+      });
 
-    channel.subscribe((status, err) => {
-      if (err) {
-        console.error("Realtime subscription error:", err);
-      }
-    });
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [threadId, user?.id, queryClient]);
 
   return query;
