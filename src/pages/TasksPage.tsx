@@ -1255,6 +1255,20 @@ export function TasksPage() {
           {rightPanel}
         </div>
       )}
+
+      {/* Floating action button for new task */}
+      {!selectedTask && !newTaskOpen && (
+        <button
+          onClick={() => {
+            setNewTaskOpen(true);
+            setSelectedTask(null);
+          }}
+          className="fixed bottom-20 md:bottom-8 right-6 md:right-8 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center z-40"
+          title="New task"
+        >
+          <Plus size={24} />
+        </button>
+      )}
     </div>
   );
 }

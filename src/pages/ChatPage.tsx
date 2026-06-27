@@ -337,6 +337,11 @@ export function ChatPage() {
         updateStatus={headwayWorkflow.updateStatus}
       />
 
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-border/50 shrink-0">
+        <h1 className="text-lg font-semibold text-foreground">Team Chat</h1>
+      </div>
+
       {/* Tab bar */}
       <div className="flex items-center gap-0 border-b border-border px-4 shrink-0">
         <button
