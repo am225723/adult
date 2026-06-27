@@ -407,11 +407,9 @@ function StepDetected({
 // ── Step 2: Open Headway ──────────────────────────────────────────────────────
 
 function StepOpenHeadway({
-  workflow,
   onOpen,
   onSkip,
 }: {
-  workflow: NonNullable<ReturnType<typeof useHeadwayWorkflow>["workflow"]>;
   onOpen: () => void;
   onSkip: () => void;
 }) {

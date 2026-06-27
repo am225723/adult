@@ -371,25 +371,6 @@ function CallDetail({
   );
 }
 
-function ConnectPrompt() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 py-24 text-center px-8">
-      <Phone size={40} strokeWidth={1.25} className="text-muted-foreground" />
-      <div>
-        <p className="text-base font-medium text-foreground">Connect Quo</p>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          Set{" "}
-          <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">QUO_API_KEY</code> in
-          your Supabase Edge Function secrets, then deploy:
-        </p>
-      </div>
-      <pre className="text-xs bg-muted rounded-lg px-4 py-3 text-left text-muted-foreground max-w-full overflow-x-auto">
-        {`supabase functions deploy quo-messages quo-calls --no-verify-jwt`}
-      </pre>
-    </div>
-  );
-}
-
 export function PhonePage() {
   const [filter, setFilter] = useState<CallFilter>("missed");
   const [selectedCall, setSelectedCall] = useState<PhoneCall | null>(null);
