@@ -185,23 +185,34 @@ function CallRow({
     <button
       onClick={() => onSelect(call)}
       className={cn(
-        "w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border",
+        "w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border",
         isSelected && "bg-muted",
       )}
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted shrink-0">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted shrink-0">
         <CallIcon call={call} />
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className={cn("text-sm font-medium truncate", missed && "text-destructive")}>
+        <p className={cn("text-sm font-medium truncate", missed && "text-destructive font-semibold")}>
           {contact?.display_name || "Unknown"}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {call.occurred_at ? relativeTime(call.occurred_at) : "Unknown time"}
-          {call.duration_seconds ? ` · ${formatDuration(call.duration_seconds)}` : ""}
-          {call.voicemail_transcript ? " · Voicemail" : ""}
-        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className="text-xs text-muted-foreground">
+            {call.occurred_at ? relativeTime(call.occurred_at) : "Unknown time"}
+          </span>
+          {missed && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive bg-red-100 px-1.5 py-0.5 rounded">
+              <PhoneMissed size={10} />
+              Missed Call
+            </span>
+          )}
+          {call.voicemail_transcript && (
+            <span className="text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+              Voicemail
+            </span>
+          )}
+        </div>
       </div>
 
       {hasTranscript && <ChevronRight size={14} className="text-muted-foreground shrink-0" />}
@@ -390,32 +401,26 @@ export function PhonePage() {
   return (
     <div className="flex flex-col md:flex-row h-full">
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="px-4 py-6 border-b border-border/50 shrink-0">
-          <h1 className="text-2xl font-bold font-display text-primary">Phone</h1>
-          <p className="text-sm text-muted-foreground mt-1">View your call history and voicemails</p>
+        {/* Header with workspace name */}
+        <div className="px-6 py-4 border-b border-border/50 shrink-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-sm font-medium text-muted-foreground">Integrative Psychiatry</h2>
+          </div>
+          <h1 className="text-lg font-semibold text-foreground">Communications Hub</h1>
         </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+        {/* Phone number selector tabs + filter tabs */}
+        <div className="px-4 py-3 border-b border-border shrink-0 flex items-center gap-2 overflow-x-auto">
+          <button className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-primary text-primary-foreground">My Number</button>
+          <button className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10">Private Line</button>
+          <button className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/10">Office</button>
+
+          <div className="flex-1" />
+
+          {/* Calls/Messages toggle */}
           <div className="flex rounded-lg border border-border overflow-hidden">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => {
-                  setFilter(tab.key);
-                  setSelectedCall(null);
-                }}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  filter === tab.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+            <button className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">Calls</button>
+            <button className="px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700">Messages</button>
           </div>
         </div>
 

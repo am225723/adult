@@ -180,20 +180,23 @@ function EventChip({
   onClick?: () => void;
 }) {
   const start = new Date(event.start_time);
+  // Use green color for events, red for conflicts
+  const bgColor = hasConflict
+    ? "bg-red-100 text-red-900 border-red-200"
+    : "bg-emerald-100 text-emerald-900 border-emerald-200";
+
   return (
     <div
       title={`${event.title}${event.all_day ? "" : ` · ${fmt12(start)}`}`}
       onClick={onClick}
       className={cn(
-        "text-[11px] leading-tight px-1 py-0.5 rounded-sm truncate",
-        onClick ? "cursor-pointer hover:opacity-80" : "cursor-default",
-        "bg-primary/15 text-primary",
-        hasConflict &&
-          "ring-1 ring-inset ring-destructive bg-destructive/10 text-destructive",
+        "text-[11px] leading-tight px-1.5 py-0.5 rounded border",
+        onClick ? "cursor-pointer hover:opacity-90" : "cursor-default",
+        bgColor,
       )}
     >
       {!event.all_day && (
-        <span className="opacity-60 mr-0.5">
+        <span className="opacity-70 mr-0.5">
           {start.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}
         </span>
       )}
@@ -465,6 +468,10 @@ function TimeGrid({
                 const endMins = end.getHours() * 60 + end.getMinutes();
                 const topPx = (startMins / 60) * HOUR_PX;
                 const heightPx = Math.max(((endMins - startMins) / 60) * HOUR_PX, 18);
+                const hasConflict = conflictIds.has(ev.id);
+                const bgColor = hasConflict
+                  ? "bg-red-400 text-white border-red-500"
+                  : "bg-emerald-400 text-white border-emerald-500";
 
                 return (
                   <div
@@ -472,17 +479,15 @@ function TimeGrid({
                     title={`${ev.title} · ${fmt12(start)} – ${fmt12(end)}`}
                     onClick={() => onEventClick?.(ev)}
                     className={cn(
-                      "absolute left-0.5 right-0.5 rounded-sm text-[11px] px-1 py-0.5 overflow-hidden",
-                      onEventClick ? "cursor-pointer hover:opacity-80" : "cursor-default",
-                      "bg-primary/20 text-primary border border-primary/30",
-                      conflictIds.has(ev.id) &&
-                        "bg-destructive/15 text-destructive border-destructive/40",
+                      "absolute left-0.5 right-0.5 rounded text-[11px] px-2 py-1 overflow-hidden border shadow-sm",
+                      onEventClick ? "cursor-pointer hover:shadow-md" : "cursor-default",
+                      bgColor,
                     )}
                     style={{ top: `${topPx}px`, height: `${heightPx}px` }}
                   >
-                    <div className="font-medium truncate leading-tight">{ev.title}</div>
+                    <div className="font-semibold truncate leading-tight text-xs">{ev.title}</div>
                     {heightPx >= 28 && (
-                      <div className="opacity-70 truncate leading-tight">
+                      <div className="opacity-90 truncate leading-tight text-[10px]">
                         {fmt12(start)}
                       </div>
                     )}
@@ -1188,34 +1193,64 @@ export function CalendarPage() {
     return c;
   });
 
+  const getWeekNumber = (date: Date): number => {
+    const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+    const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+    return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Header */}
-      <div className="px-6 py-6 border-b border-border/50">
-        <h1 className="text-2xl font-bold text-primary font-display mb-1">Calendar</h1>
-        <p className="text-sm text-muted-foreground">View and manage your clinical schedule and patient appointments.</p>
+      {/* Header - updated for elevated design */}
+      <div className="px-6 py-4 border-b border-border/50 flex items-center gap-3">
+        {view === "week" && (
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prev}>
+            <ChevronLeft size={18} />
+          </Button>
+        )}
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold text-foreground">
+              {view === "week"
+                ? `Clinical Week ${getWeekNumber(cursor)}`
+                : view === "month"
+                ? fmtMonthYear(cursor)
+                : periodLabel()}
+            </h1>
+            {view === "week" && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                {fmtWeekRange(cursor)}
+              </span>
+            )}
+          </div>
+        </div>
+        {view === "week" && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto" onClick={next}>
+            <ChevronRight size={18} />
+          </Button>
+        )}
       </div>
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 shrink-0">
-        {/* Today + nav */}
-        <Button variant="outline" size="sm" onClick={goToday}>
-          Today
-        </Button>
-        {view !== "agenda" && (
+        {/* Today + nav for non-week views */}
+        {view !== "week" && (
           <>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prev}>
-              <ChevronLeft size={16} />
+            <Button variant="outline" size="sm" onClick={goToday}>
+              Today
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={next}>
-              <ChevronRight size={16} />
-            </Button>
+            {view !== "agenda" && (
+              <>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prev}>
+                  <ChevronLeft size={16} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={next}>
+                  <ChevronRight size={16} />
+                </Button>
+              </>
+            )}
           </>
         )}
-
-        <span className="text-sm font-medium text-foreground min-w-0">
-          {periodLabel()}
-        </span>
 
         <div className="flex-1" />
 
@@ -1269,23 +1304,38 @@ export function CalendarPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
-        {accountLoading ? null : !account ? (
-          <ConnectPrompt onConnect={handleConnect} />
-        ) : eventsLoading ? (
-          <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-            Loading events…
+      {accountLoading ? null : !account ? (
+        <ConnectPrompt onConnect={handleConnect} />
+      ) : eventsLoading ? (
+        <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+          Loading events…
+        </div>
+      ) : view === "week" ? (
+        // Split-view layout for week view
+        <div className="flex-1 overflow-hidden flex">
+          <div className="flex-1 overflow-auto">
+            <TimeGrid days={weekDays} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
           </div>
-        ) : view === "month" ? (
-          <MonthView cursor={cursor} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
-        ) : view === "week" ? (
-          <TimeGrid days={weekDays} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
-        ) : view === "day" ? (
-          <TimeGrid days={dayView} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
-        ) : (
-          <AgendaView events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
-        )}
-      </div>
+          <div className="w-80 border-l border-border flex flex-col bg-muted/30">
+            <div className="px-4 py-3 border-b border-border bg-background">
+              <h3 className="text-sm font-semibold text-foreground">Daily Agenda</h3>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <AgendaView events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto">
+          {view === "month" ? (
+            <MonthView cursor={cursor} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
+          ) : view === "day" ? (
+            <TimeGrid days={dayView} events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
+          ) : (
+            <AgendaView events={events} conflictIds={conflictIds} onEventClick={setSelectedEvent} />
+          )}
+        </div>
+      )}
 
       <NewEventDialog
         open={newEventOpen}

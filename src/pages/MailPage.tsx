@@ -390,13 +390,13 @@ function EmailRow({
     <div
       onClick={() => onSelect(email)}
       className={cn(
-        "flex items-center gap-4 px-4 py-3 border-b border-border hover:bg-muted/50 cursor-pointer transition-colors",
+        "flex items-start gap-3 px-4 py-3 border-b border-border hover:bg-muted/50 cursor-pointer transition-colors",
         !email.is_read && "bg-muted/20",
         isSelected && "bg-muted",
       )}
     >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0 pt-0.5">
+        <div className="flex items-center gap-2 mb-1">
           <p className={cn("text-sm truncate", email.is_read === false && "font-semibold")}>
             {senderDisplay}
           </p>
@@ -404,12 +404,12 @@ function EmailRow({
             <Star size={12} className="text-amber-500 shrink-0 fill-amber-500" />
           )}
         </div>
-        <p className={cn("text-sm truncate", email.is_read === false ? "text-foreground font-medium" : "text-muted-foreground")}>
+        <p className={cn("text-sm truncate mb-1", email.is_read === false ? "text-foreground font-medium" : "text-foreground")}>
           {email.subject || "(no subject)"}
         </p>
         <p className="text-xs text-muted-foreground truncate">{email.snippet || ""}</p>
       </div>
-      <div className="text-xs text-muted-foreground shrink-0">
+      <div className="text-xs text-muted-foreground shrink-0 whitespace-nowrap pt-0.5">
         {formatRelativeDate(email.received_at)}
       </div>
     </div>
@@ -802,16 +802,19 @@ export function MailPage() {
   return (
     <div className="flex flex-col md:flex-row h-full">
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="px-4 py-6 border-b border-border/50 shrink-0">
-          <h1 className="text-2xl font-bold font-display text-primary">Communication Hub</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your emails and stay connected</p>
+        {/* Header with workspace name and hub title */}
+        <div className="px-6 py-4 border-b border-border/50 shrink-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-sm font-medium text-muted-foreground">Integrative Psychiatry</h2>
+          </div>
+          <h1 className="text-lg font-semibold text-foreground">Communication Hub</h1>
         </div>
 
-        {/* Toolbar */}
+        {/* Tab bar for email filters */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            {TABS.map((tab) => (
+          {TABS.map((tab) => {
+            const unreadBadgeColor = tab.key === "inbox" ? "bg-emerald-100 text-emerald-700" : tab.key === "unread" ? "bg-red-100 text-red-700" : "";
+            return (
               <button
                 key={tab.key}
                 onClick={() => {
@@ -819,16 +822,21 @@ export function MailPage() {
                   setSelectedEmail(null);
                 }}
                 className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
+                  "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2",
                   filter === tab.key
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    : "text-muted-foreground hover:text-foreground hover:bg-primary/10",
                 )}
               >
                 {tab.label}
+                {(tab.key === "inbox" || tab.key === "unread") && (
+                  <span className={cn("inline-flex items-center justify-center h-5 w-5 rounded-full text-xs font-semibold", unreadBadgeColor)}>
+                    •
+                  </span>
+                )}
               </button>
-            ))}
-          </div>
+            );
+          })}
 
           <div className="flex-1" />
 
@@ -845,7 +853,7 @@ export function MailPage() {
                 <RefreshCw size={14} className={cn(syncing && "animate-spin")} />
               </Button>
               <Button size="sm" onClick={() => setComposeOpen(true)}>
-                <PenLine size={14} className="mr-1" />
+                <Plus size={14} className="mr-1" />
                 Compose
               </Button>
             </>
