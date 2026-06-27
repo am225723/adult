@@ -663,10 +663,10 @@ function ContactDetailView({ id }: { id: string }) {
                 key={f.value}
                 onClick={() => setFilter(f.value)}
                 className={cn(
-                  "text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0",
+                  "text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors shrink-0 font-medium",
                   filter === f.value
-                    ? "bg-foreground text-background font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 )}
               >
                 {f.label}

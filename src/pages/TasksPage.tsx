@@ -97,27 +97,27 @@ function QuickCapture({
 
   return (
     <form
-      className="flex items-center gap-2 px-4 py-2 border-b border-border"
+      className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-primary/5"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
     >
-      <Plus size={14} className="text-muted-foreground shrink-0" />
+      <Plus size={16} className="text-primary shrink-0" />
       <input
         ref={inputRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Add a task…"
-        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground font-medium"
       />
       {value.trim() ? (
-        <Button type="submit" size="sm" variant="ghost" className="h-6 px-2 text-xs">
+        <Button type="submit" size="sm" className="h-8 px-3 text-xs">
           Add
         </Button>
       ) : (
-        <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs shrink-0" onClick={onOpenNew}>
-          Full details
+        <Button type="button" size="sm" variant="ghost" className="h-8 px-3 text-xs shrink-0" onClick={onOpenNew}>
+          Details
         </Button>
       )}
     </form>
@@ -989,18 +989,18 @@ function ProjectsSidebar({
   }
 
   return (
-    <div className="hidden md:flex w-44 shrink-0 border-r border-border flex-col">
-      <div className="px-3 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-          Projects
+    <div className="hidden md:flex w-48 shrink-0 border-r border-border/50 flex-col bg-card/50">
+      <div className="px-4 py-4 border-b border-border/50">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+          Workspaces
         </p>
 
         <button
           className={cn(
-            "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm",
+            "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
             !selectedProject
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:bg-muted/50",
+              ? "bg-primary/20 text-primary"
+              : "text-muted-foreground hover:bg-primary/10",
           )}
           onClick={() => onSelect(undefined)}
         >
@@ -1011,15 +1011,15 @@ function ProjectsSidebar({
           <button
             key={p.id}
             className={cn(
-              "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm truncate",
+              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium truncate transition-all mt-1",
               selectedProject === p.id
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:bg-muted/50",
+                ? "bg-primary/20 text-primary"
+                : "text-muted-foreground hover:bg-primary/10",
             )}
             onClick={() => onSelect(p.id)}
           >
             <div
-              className="w-2 h-2 rounded-full shrink-0"
+              className="w-2.5 h-2.5 rounded-full shrink-0"
               style={{ backgroundColor: p.color ?? "#888" }}
             />
             <span className="truncate">{p.name}</span>
@@ -1140,8 +1140,14 @@ export function TasksPage() {
       />
 
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="px-6 py-6 border-b border-border/50 shrink-0">
+          <h1 className="text-2xl font-bold text-primary font-display mb-1">Tasks</h1>
+          <p className="text-sm text-muted-foreground">Manage patient follow-ups and daily clinical duties.</p>
+        </div>
+
         {/* Tabs */}
-        <div className="flex items-center gap-0.5 px-4 pt-4 pb-2 border-b border-border shrink-0">
+        <div className="flex items-center gap-0.5 px-4 pt-4 pb-2 border-b border-border/50 shrink-0">
           {TABS.map(({ key, label }) => (
             <button
               key={key}
@@ -1150,10 +1156,10 @@ export function TasksPage() {
                 setSelectedTask(null);
               }}
               className={cn(
-                "px-3 py-1.5 text-sm rounded-lg font-medium transition-colors",
+                "px-3 py-1.5 text-sm font-semibold rounded-lg transition-all",
                 tab === key
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-primary/10",
               )}
             >
               {label}

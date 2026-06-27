@@ -1190,8 +1190,14 @@ export function CalendarPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      {/* Header */}
+      <div className="px-6 py-6 border-b border-border/50">
+        <h1 className="text-2xl font-bold text-primary font-display mb-1">Calendar</h1>
+        <p className="text-sm text-muted-foreground">View and manage your clinical schedule and patient appointments.</p>
+      </div>
+
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50 shrink-0">
         {/* Today + nav */}
         <Button variant="outline" size="sm" onClick={goToday}>
           Today

@@ -390,6 +390,12 @@ export function PhonePage() {
   return (
     <div className="flex flex-col md:flex-row h-full">
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="px-4 py-6 border-b border-border/50 shrink-0">
+          <h1 className="text-2xl font-bold font-display text-primary">Phone</h1>
+          <p className="text-sm text-muted-foreground mt-1">View your call history and voicemails</p>
+        </div>
+
         {/* Toolbar */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
           <div className="flex rounded-lg border border-border overflow-hidden">
