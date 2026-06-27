@@ -19,6 +19,7 @@ import {
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 import { useTheme } from "@/components/theme-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -49,6 +50,7 @@ const NAV_ITEMS = [
 
 export function AppLayout() {
   const { session, loading } = useAuth();
+  useInactivityLogout();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
