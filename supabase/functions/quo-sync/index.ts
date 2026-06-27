@@ -72,7 +72,15 @@ Deno.serve(async (req: Request) => {
       const phoneAccountId = acct.id as string;
 
       // Messages
-      const msgRes = await quoFetch("/messages", { phoneNumberId: pn.id, maxResults: "50" });
+      const msgPayload = { phoneNumberId: pn.id, participants: [], maxResults: 50 };
+      const msgController = new AbortController();
+      const msgTimer = setTimeout(() => msgController.abort(), 10_000);
+      const msgRes = await fetch(`${QUO_BASE}/messages`, {
+        method: "POST",
+        headers: { Authorization: QUO_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify(msgPayload),
+        signal: msgController.signal,
+      }).finally(() => clearTimeout(msgTimer));
       if (!msgRes.ok) {
         const errText = await msgRes.text();
         const msg = `messages fetch failed for ${pn.number} (${pn.id}): ${msgRes.status} ${errText}`;
@@ -92,7 +100,15 @@ Deno.serve(async (req: Request) => {
       }
 
       // Calls
-      const callRes = await quoFetch("/calls", { phoneNumberId: pn.id, maxResults: "50" });
+      const callPayload = { phoneNumberId: pn.id, participants: [], maxResults: 50 };
+      const callController = new AbortController();
+      const callTimer = setTimeout(() => callController.abort(), 10_000);
+      const callRes = await fetch(`${QUO_BASE}/calls`, {
+        method: "POST",
+        headers: { Authorization: QUO_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify(callPayload),
+        signal: callController.signal,
+      }).finally(() => clearTimeout(callTimer));
       if (!callRes.ok) {
         const errText = await callRes.text();
         const msg = `calls fetch failed for ${pn.number} (${pn.id}): ${callRes.status} ${errText}`;
