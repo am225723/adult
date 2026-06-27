@@ -15,7 +15,7 @@ import {
   X,
   UserCircle,
   Search,
-  BellAlert,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1156,7 +1156,7 @@ export function TasksPage() {
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-semibold text-foreground">Task Management</h1>
               <button className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                <BellAlert size={16} />
+                <Bell size={16} />
               </button>
             </div>
           </div>
