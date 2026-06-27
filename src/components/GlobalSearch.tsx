@@ -172,11 +172,32 @@ export function GlobalSearch({ open, onClose }: Props) {
     return () => clearTimeout(t);
   }, [rawQuery]);
 
-  // Focus on open
+  // Focus on open and manage aria-hidden
   useEffect(() => {
     if (open) {
+      // Move focus to search input
       setTimeout(() => inputRef.current?.focus(), 50);
+      // Hide rest of page from assistive tech
+      const root = document.getElementById("root");
+      if (root) {
+        const backdrop = root.querySelector('[role="dialog"]')?.parentElement;
+        if (backdrop) {
+          // Mark the rest of the page as hidden
+          const siblings = Array.from(root.children).filter(child => child !== backdrop);
+          siblings.forEach(sibling => {
+            (sibling as HTMLElement).inert = true;
+          });
+        }
+      }
     } else {
+      // Restore visibility
+      const root = document.getElementById("root");
+      if (root) {
+        const siblings = Array.from(root.children);
+        siblings.forEach(sibling => {
+          (sibling as HTMLElement).inert = false;
+        });
+      }
       setRawQuery("");
       setDebouncedQuery("");
       setCategory("all");
