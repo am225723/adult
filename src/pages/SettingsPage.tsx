@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound, Unplug, Pencil, Check, X, Search, Plus } from "lucide-react";
+import { Sun, Moon, Monitor, CheckCircle2, XCircle, LogOut, Bell, Smartphone, ChevronDown, ChevronUp, RefreshCw, KeyRound, Unplug, Pencil, Check, X, Search, Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/theme-provider";
 import { toast } from "@/hooks/useToast";
 import { useCalendarAccount, useInvalidateCalendarAccount } from "@/hooks/useCalendarAccount";
-import { useGmailAccounts, useInvalidateGmailAccounts, type GmailAccountRow } from "@/hooks/useGmailAccount";
+import { useGmailAccounts, useInvalidateGmailAccounts, useUpdateGmailAccountSignature, type GmailAccountRow } from "@/hooks/useGmailAccount";
 import { supabase } from "@/lib/supabase";
 import {
   useNotificationPreferences,
@@ -54,8 +54,12 @@ function GmailAccountSection({
   const [disconnecting, setDisconnecting] = useState(false);
   const [labelSearch, setLabelSearch] = useState("");
   const [showAllLabels, setShowAllLabels] = useState(false);
+  const [signatureInput, setSignatureInput] = useState(account.email_signature ?? "");
+  const [signatureEnabled, setSignatureEnabled] = useState((account.email_signature ?? "").length > 0);
+  const [signatureDirty, setSignatureDirty] = useState(false);
   const refreshLabels = useRefreshLabels();
   const updateLabelSelection = useUpdateLabelSelection();
+  const updateSignature = useUpdateGmailAccountSignature();
 
   async function handleDisconnect() {
     setDisconnecting(true);
@@ -74,6 +78,17 @@ function GmailAccountSection({
     const next = checked ? [...current, labelId] : current.filter((id) => id !== labelId);
     if (next.length === 0) return;
     updateLabelSelection.mutate({ accountId: account.id, labelIds: next });
+  }
+
+  async function saveSignature() {
+    const sig = signatureEnabled ? signatureInput : null;
+    try {
+      await updateSignature.mutateAsync({ accountId: account.id, signature: sig });
+      setSignatureDirty(false);
+      toast({ title: "Signature saved" });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save signature" });
+    }
   }
 
   return (
@@ -171,6 +186,37 @@ function GmailAccountSection({
             </div>
           )}
 
+          <div className="pt-3 border-t border-border space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-foreground">Email signature</p>
+              <button
+                role="switch"
+                aria-checked={signatureEnabled}
+                onClick={() => { setSignatureEnabled((v) => !v); setSignatureDirty(true); }}
+                className={cn(
+                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  signatureEnabled ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <span className={cn("pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-sm transition-transform", signatureEnabled ? "translate-x-4" : "translate-x-0")} />
+              </button>
+            </div>
+            {signatureEnabled && (
+              <textarea
+                value={signatureInput}
+                onChange={(e) => { setSignatureInput(e.target.value); setSignatureDirty(true); }}
+                rows={3}
+                placeholder="Email signature…"
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-xs resize-none outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
+              />
+            )}
+            {signatureDirty && (
+              <Button size="sm" className="h-7 text-xs" onClick={saveSignature} disabled={updateSignature.isPending}>
+                {updateSignature.isPending ? "Saving…" : "Save signature"}
+              </Button>
+            )}
+          </div>
+
           <div className="pt-2 border-t border-border">
             <Button
               size="sm"
@@ -216,6 +262,7 @@ export function SettingsPage() {
   const { user, session } = useAuth();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: adminUser } = useMyAdminUser();
   const updateMyProfile = useUpdateMyProfile();
@@ -227,6 +274,7 @@ export function SettingsPage() {
   const [signatureInput, setSignatureInput] = useState("");
   const [signatureEnabled, setSignatureEnabled] = useState(false);
   const [signatureDirty, setSignatureDirty] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const {
     data: calendarAccount,
@@ -365,6 +413,28 @@ export function SettingsPage() {
     navigate("/login", { replace: true });
   }
 
+  async function handlePhotoUpload(file: File) {
+    if (!user?.id) return;
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const filename = `${user.id}-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("avatars")
+        .upload(filename, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(filename);
+      await updateMyProfile.mutateAsync({ avatar_url: data.publicUrl });
+      toast({ title: "Photo updated" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Photo upload failed", description: String(err) });
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   const THEMES = [
     { value: "light" as const, label: "Light", icon: Sun },
     { value: "dark" as const, label: "Dark", icon: Moon },
@@ -389,11 +459,34 @@ export function SettingsPage() {
       {/* Profile */}
       <SettingsSection title="Profile">
         <SettingsRow>
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold shrink-0">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            className="relative flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold shrink-0 hover:opacity-80 transition-opacity disabled:opacity-50"
+          >
             {adminUser?.avatar_url ? (
               <img src={adminUser.avatar_url} alt={initials(displayName)} className="w-10 h-10 rounded-full object-cover" />
             ) : initials(displayName)}
-          </div>
+            {uploadingPhoto && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/80">
+                <div className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              </div>
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file && file.size <= 5 * 1024 * 1024) {
+                handlePhotoUpload(file);
+              } else if (file) {
+                toast({ variant: "destructive", title: "File too large", description: "Maximum 5MB" });
+              }
+            }}
+          />
           <div className="flex-1 min-w-0">
             {editingName ? (
               <div className="flex items-center gap-1">

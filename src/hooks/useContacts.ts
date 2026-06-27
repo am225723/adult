@@ -125,3 +125,28 @@ export function useDeleteContact() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["contacts"] }),
   });
 }
+
+export function useBulkImportContacts() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (contacts: Array<{
+      display_name: string;
+      primary_email?: string | null;
+      primary_phone?: string | null;
+      company?: string | null;
+      notes?: string | null;
+    }>) => {
+      if (!user) throw new Error("Not authenticated");
+      const wsId = await getWorkspaceId(user.id);
+      const rows = contacts.map((c) => ({ workspace_id: wsId, ...c }));
+      const { data, error } = await supabase
+        .from("admin_contacts")
+        .insert(rows)
+        .select("id, workspace_id, display_name, primary_email, primary_phone, company, notes, created_at, updated_at");
+      if (error) throw error;
+      return (data ?? []) as Contact[];
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contacts"] }),
+  });
+}
