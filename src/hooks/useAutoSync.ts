@@ -16,15 +16,19 @@ async function edgePost(path: string, token: string, body?: object) {
 }
 
 async function syncAll(token: string, qc: ReturnType<typeof useQueryClient>) {
+  const jobs: Promise<unknown>[] = [];
+
   // 1. Quo (phone calls + messages)
-  edgePost("quo-sync", token)
-    .then((res) => res.json().catch(() => ({})))
-    .then((json) => {
-      if (json.error === "QUO_API_KEY not configured") return;
-      qc.invalidateQueries({ queryKey: ["phone-calls"] });
-      qc.invalidateQueries({ queryKey: ["phone-messages"] });
-    })
-    .catch(() => {});
+  jobs.push(
+    edgePost("quo-sync", token)
+      .then((res) => res.json().catch(() => ({})))
+      .then((json) => {
+        if (json.error === "QUO_API_KEY not configured") return;
+        qc.invalidateQueries({ queryKey: ["phone-calls"] });
+        qc.invalidateQueries({ queryKey: ["phone-messages"] });
+      })
+      .catch(() => {}),
+  );
 
   // 2. Gmail — sync each connected account
   const { data: gmailAccounts } = await supabase
@@ -33,11 +37,13 @@ async function syncAll(token: string, qc: ReturnType<typeof useQueryClient>) {
     .eq("provider", "google");
 
   for (const acct of gmailAccounts ?? []) {
-    edgePost("google-gmail-sync", token, { gmail_account_id: acct.id })
-      .then(() => {
-        qc.invalidateQueries({ queryKey: ["emails"] });
-      })
-      .catch(() => {});
+    jobs.push(
+      edgePost("google-gmail-sync", token, { gmail_account_id: acct.id })
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ["emails"] });
+        })
+        .catch(() => {}),
+    );
   }
 
   // 3. Calendar — sync each connected account
@@ -47,26 +53,37 @@ async function syncAll(token: string, qc: ReturnType<typeof useQueryClient>) {
     .eq("provider", "google");
 
   for (const acct of calAccounts ?? []) {
-    edgePost("google-calendar-sync", token, { calendar_account_id: acct.id })
-      .then(() => {
-        qc.invalidateQueries({ queryKey: ["calendar-events"] });
-      })
-      .catch(() => {});
+    jobs.push(
+      edgePost("google-calendar-sync", token, { calendar_account_id: acct.id })
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ["calendar-events"] });
+        })
+        .catch(() => {}),
+    );
   }
+
+  await Promise.allSettled(jobs);
 }
 
 export function useAutoSync() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const syncingRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
 
     async function run() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      syncAll(session.access_token, qc);
+      if (syncingRef.current) return;
+      syncingRef.current = true;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        await syncAll(session.access_token, qc);
+      } finally {
+        syncingRef.current = false;
+      }
     }
 
     // Sync immediately on mount (login)

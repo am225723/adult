@@ -152,7 +152,7 @@ function CallIcon({ direction, status }: { direction: string | null; status: str
 }
 
 function formatDuration(seconds: number | null): string {
-  if (!seconds) return "";
+  if (seconds == null) return "";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
@@ -173,6 +173,16 @@ function relativeTime(iso: string | null): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function safeHttpUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function CallDetailPanel({
   call,
   onClose,
@@ -187,6 +197,7 @@ function CallDetailPanel({
   const { data: contact } = useContact(call.contact_id ?? "");
 
   const isMissed = ["missed", "no-answer", "abandoned"].includes(call.status ?? "");
+  const voicemailUrl = safeHttpUrl(call.voicemail_url);
 
   async function handleCreateTask() {
     setCreatingTask(true);
@@ -244,9 +255,9 @@ function CallDetailPanel({
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Voicemail</p>
             <p className="text-xs text-foreground leading-relaxed">{call.voicemail_transcript}</p>
-            {call.voicemail_url && (
+            {voicemailUrl && (
               <a
-                href={call.voicemail_url}
+                href={voicemailUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-primary hover:underline mt-1 block"
@@ -307,7 +318,7 @@ export function PhonePage() {
           {TABS.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setFilter(tab.key)}
+              onClick={() => { if (tab.key !== filter) { setFilter(tab.key); setSelectedCall(null); } }}
               className={cn(
                 "px-3 py-1 text-xs rounded-full transition-colors",
                 filter === tab.key

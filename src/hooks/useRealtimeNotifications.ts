@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
 function sendNotification(title: string, body: string, tag: string) {
+  if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   // Don't notify when the tab is already in focus
   if (document.visibilityState === "visible") return;
@@ -35,9 +36,9 @@ export function useRealtimeNotifications() {
         { event: "INSERT", schema: "public", table: "admin_phone_messages" },
         (payload) => {
           const msg = payload.new as { direction?: string; body?: string };
+          qc.invalidateQueries({ queryKey: ["phone-messages"] });
+          qc.invalidateQueries({ queryKey: ["contact-messages"] });
           if (msg.direction === "incoming") {
-            qc.invalidateQueries({ queryKey: ["phone-messages"] });
-            qc.invalidateQueries({ queryKey: ["contact-messages"] });
             sendNotification("New text message", msg.body ?? "You have a new message", "sms-new");
           }
         },
