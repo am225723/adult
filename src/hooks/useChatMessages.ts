@@ -60,6 +60,9 @@ export function useChatMessages(threadId: string | null) {
         if (err) {
           console.error("Realtime subscription error:", err);
         }
+        if (status !== "SUBSCRIBED") {
+          console.warn("Realtime subscription status:", status);
+        }
       });
 
     return () => {
