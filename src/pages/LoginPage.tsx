@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/useToast";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Lock, Shield } from "lucide-react";
 
 type Mode = "sign_in" | "sign_up" | "forgot";
 
@@ -94,171 +94,192 @@ export function LoginPage() {
     }
   }
 
-  const title =
-    mode === "sign_in"
-      ? "Welcome back"
-      : mode === "sign_up"
-        ? "Create your account"
-        : "Reset password";
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8 animate-fade-in">
-        {/* Logo / wordmark */}
-        <div className="space-y-3">
-          <img
-            src="/whitelogo.png"
-            alt="Integrative Psychiatry"
-            className="w-14 h-14 rounded-full"
-          />
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Adulting
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md space-y-6 animate-fade-in">
+        {/* Logo and branding */}
+        <div className="text-center space-y-4 mb-2">
+          <div className="flex justify-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+              <img
+                src="/whitelogo.png"
+                alt="Integrative Psychiatry"
+                className="w-16 h-16 object-contain"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight text-primary font-display">
+              Integrative Psychiatry
             </h1>
-            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className="text-sm text-muted-foreground">Secure Clinical Workspace</p>
           </div>
         </div>
 
-        {mode === "forgot" && resetSent ? (
-          <div className="space-y-4">
-            <p className="text-sm text-foreground">
-              Password reset link sent to <strong>{email}</strong>. Check your
-              inbox.
-            </p>
-            <Button
-              variant="ghost"
-              className="px-0 text-sm"
-              onClick={() => {
-                setMode("sign_in");
-                setResetSent(false);
-              }}
-            >
-              Back to sign in
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={handleEmailAuth} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={submitting}
-              />
+        {/* Main auth form area */}
+        <div className="bg-primary/15 rounded-2xl p-6 space-y-4">
+          {mode === "forgot" && resetSent ? (
+            <div className="space-y-4">
+              <p className="text-sm text-foreground">
+                Password reset link sent to <strong>{email}</strong>. Check your inbox.
+              </p>
+              <Button
+                variant="ghost"
+                className="px-0 text-sm"
+                onClick={() => {
+                  setMode("sign_in");
+                  setResetSent(false);
+                }}
+              >
+                Back to sign in
+              </Button>
             </div>
-
-            {mode !== "forgot" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete={
-                    mode === "sign_in" ? "current-password" : "new-password"
-                  }
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+          ) : (
+            <>
+              {/* OAuth buttons */}
+              <div className="space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full gap-2 h-11 rounded-full font-medium"
+                  onClick={handleGoogleLogin}
                   disabled={submitting}
-                  minLength={8}
-                />
-              </div>
-            )}
-
-            {mode === "sign_in" && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setMode("forgot")}
                 >
-                  Forgot password?
-                </button>
-              </div>
-            )}
+                  <GoogleIcon />
+                  Sign in with Google
+                </Button>
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting
-                ? "..."
-                : mode === "sign_in"
-                  ? "Sign in"
-                  : mode === "sign_up"
-                    ? "Create account"
-                    : "Send reset link"}
-            </Button>
-          </form>
-        )}
-
-        {mode !== "forgot" && !resetSent && (
-          <>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  or
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={handlePasskeyLogin}
-                disabled={submitting}
-              >
-                <KeyRound size={16} />
-                Sign in with passkey
-              </Button>
-
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={handleGoogleLogin}
-                disabled={submitting}
-              >
-                <GoogleIcon />
-                Continue with Google
-              </Button>
-            </div>
-          </>
-        )}
-
-        {mode !== "forgot" && (
-          <p className="text-center text-sm text-muted-foreground">
-            {mode === "sign_in" ? (
-              <>
-                Don&apos;t have an account?{" "}
-                <button
-                  type="button"
-                  className="text-foreground font-medium hover:underline"
-                  onClick={() => setMode("sign_up")}
+                <Button
+                  className="w-full gap-2 h-11 rounded-full font-medium bg-primary hover:bg-primary/90"
+                  onClick={handlePasskeyLogin}
+                  disabled={submitting}
                 >
-                  Sign up
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  className="text-foreground font-medium hover:underline"
-                  onClick={() => setMode("sign_in")}
+                  <KeyRound size={18} />
+                  Sign in with Passkey
+                </Button>
+              </div>
+
+              {/* Divider */}
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-primary/20" />
+                </div>
+                <div className="relative flex justify-center text-xs font-semibold uppercase">
+                  <span className="bg-primary/15 px-3 text-muted-foreground">
+                    or continue with email
+                  </span>
+                </div>
+              </div>
+
+              {/* Email/Password form */}
+              <form onSubmit={handleEmailAuth} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-semibold">
+                    Professional Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="dr.smith@clinic.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={submitting}
+                    className="h-11 rounded-full bg-white/80 border-primary/20"
+                  />
+                </div>
+
+                {mode !== "forgot" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-sm font-semibold">
+                        Password
+                      </Label>
+                      {mode === "sign_in" && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline transition-colors"
+                          onClick={() => setMode("forgot")}
+                        >
+                          Forgot?
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      id="password"
+                      type="password"
+                      autoComplete={
+                        mode === "sign_in" ? "current-password" : "new-password"
+                      }
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={submitting}
+                      minLength={8}
+                      className="h-11 rounded-full bg-white/80 border-primary/20"
+                    />
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full h-11 rounded-full font-semibold"
+                  disabled={submitting}
                 >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
-        )}
+                  {submitting
+                    ? "..."
+                    : mode === "sign_in"
+                      ? "Sign In"
+                      : mode === "sign_up"
+                        ? "Create Account"
+                        : "Send Reset Link"}
+                </Button>
+              </form>
+
+              {/* Toggle sign in/sign up */}
+              {mode !== "forgot" && (
+                <p className="text-center text-sm text-muted-foreground pt-2">
+                  {mode === "sign_in" ? (
+                    <>
+                      Don&apos;t have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary font-semibold hover:underline"
+                        onClick={() => setMode("sign_up")}
+                      >
+                        Sign up
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary font-semibold hover:underline"
+                        onClick={() => setMode("sign_in")}
+                      >
+                        Sign in
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Security badges */}
+        <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Shield size={14} className="text-primary/60" />
+            <span>HIPAA Compliant</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Lock size={14} className="text-primary/60" />
+            <span>AES-256 Encrypted</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -266,7 +287,7 @@ export function LoginPage() {
 
 function GoogleIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
       <path
         d="M15.68 8.18c0-.57-.05-1.12-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z"
         fill="#4285F4"

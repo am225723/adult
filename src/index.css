@@ -4,86 +4,86 @@
 
 @layer base {
   :root {
-    /* Serene Clinical Dashboard — Light Mode */
+    /* Integrative Psychiatry Clinical Workspace — Light Mode */
 
     /* Surfaces */
-    --background: 106 100% 95%;       /* #ebffe5 soft botanical green */
-    --foreground: 123 45% 9%;         /* #0c200d deep forest text */
+    --background: 155 53% 95%;        /* #eefdf4 pale mint green */
+    --foreground: 171 35% 9%;         /* #121e19 dark text */
 
-    --card: 0 0% 100%;                /* white cards lift off background */
-    --card-foreground: 123 45% 9%;
+    --card: 0 0% 100%;                /* #ffffff card surfaces */
+    --card-foreground: 171 35% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 123 45% 9%;
+    --popover-foreground: 171 35% 9%;
 
-    /* Brand colors */
-    --primary: 169 46% 29%;           /* #286B5F muted pine green */
+    /* Brand colors — from design system */
+    --primary: 163 52% 32%;           /* #25695d teal primary */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 144 40% 49%;         /* #4CB074 vibrant forest green (CTAs) */
+    --secondary: 163 100% 27%;        /* #006d3c green secondary */
     --secondary-foreground: 0 0% 100%;
 
     /* Neutral tones */
-    --muted: 106 35% 89%;
-    --muted-foreground: 160 12% 43%;
+    --muted: 165 29% 89%;
+    --muted-foreground: 168 16% 30%;
 
-    --accent: 144 40% 49%;
+    --accent: 163 52% 32%;
     --accent-foreground: 0 0% 100%;
 
     /* Error */
-    --destructive: 0 65% 51%;         /* #D32F2F clinical red */
+    --destructive: 0 75% 50%;         /* #ba1a1a clinic red */
     --destructive-foreground: 0 0% 100%;
 
     /* Structure */
-    --border: 113 22% 82%;
-    --input: 113 22% 82%;
-    --ring: 144 40% 49%;              /* focus ring — secondary green */
+    --border: 165 16% 76%;
+    --input: 165 16% 76%;
+    --ring: 163 52% 32%;              /* focus ring — teal */
 
     --radius: 1rem;                   /* 16px base per design system */
 
     /* Sidebar */
-    --sidebar-background: 106 45% 91%;
-    --sidebar-foreground: 123 35% 22%;
-    --sidebar-border: 113 22% 79%;
-    --sidebar-accent: 144 25% 85%;
-    --sidebar-accent-foreground: 169 46% 29%;
+    --sidebar-background: 171 25% 13%;
+    --sidebar-foreground: 165 29% 92%;
+    --sidebar-border: 171 22% 20%;
+    --sidebar-accent: 163 52% 32%;
+    --sidebar-accent-foreground: 0 0% 100%;
   }
 
   .dark {
-    /* Serene Clinical Dashboard — Dark Mode */
-    --background: 117 25% 8%;
-    --foreground: 108 55% 91%;        /* #dff8d9 */
+    /* Integrative Psychiatry Clinical Workspace — Dark Mode */
+    --background: 171 33% 13%;
+    --foreground: 165 29% 92%;        /* #e5f4eb light text */
 
-    --card: 117 25% 12%;
-    --card-foreground: 108 55% 91%;
+    --card: 171 33% 17%;
+    --card-foreground: 165 29% 92%;
 
-    --popover: 117 25% 12%;
-    --popover-foreground: 108 55% 91%;
+    --popover: 171 33% 17%;
+    --popover-foreground: 165 29% 92%;
 
-    --primary: 169 38% 62%;
-    --primary-foreground: 117 25% 8%;
+    --primary: 163 52% 62%;
+    --primary-foreground: 171 33% 13%;
 
-    --secondary: 144 35% 52%;
+    --secondary: 163 100% 52%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 117 20% 16%;
-    --muted-foreground: 113 18% 55%;
+    --muted: 171 25% 22%;
+    --muted-foreground: 165 18% 58%;
 
-    --accent: 144 35% 52%;
+    --accent: 163 52% 62%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62% 50%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 117 20% 18%;
-    --input: 117 20% 18%;
-    --ring: 144 35% 52%;
+    --border: 171 25% 24%;
+    --input: 171 25% 24%;
+    --ring: 163 52% 62%;
 
-    --sidebar-background: 117 25% 6%;
-    --sidebar-foreground: 108 38% 74%;
-    --sidebar-border: 117 20% 14%;
-    --sidebar-accent: 117 20% 14%;
-    --sidebar-accent-foreground: 108 55% 91%;
+    --sidebar-background: 171 33% 11%;
+    --sidebar-foreground: 165 29% 85%;
+    --sidebar-border: 171 25% 20%;
+    --sidebar-accent: 163 52% 32%;
+    --sidebar-accent-foreground: 0 0% 100%;
   }
 }
 
