@@ -380,8 +380,8 @@ export function SettingsPage() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
+        <h1 className="text-2xl font-bold font-display text-primary">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Manage your account and integrations.
         </p>
       </div>

@@ -293,8 +293,6 @@ function CallDetailPanel({
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────────────────────────────
-
 export function PhonePage() {
   const [filter, setFilter] = useState<CallFilter>("missed");
   const [selectedCall, setSelectedCall] = useState<PhoneCall | null>(null);
@@ -307,11 +305,35 @@ export function PhonePage() {
   ];
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-border shrink-0">
-        <div>
-          <h1 className="text-lg font-semibold">Phone</h1>
+    <div className="flex flex-col md:flex-row h-full">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="px-4 py-6 border-b border-border/50 shrink-0">
+          <h1 className="text-2xl font-bold font-display text-primary">Phone</h1>
+          <p className="text-sm text-muted-foreground mt-1">View your call history and voicemails</p>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  setFilter(tab.key);
+                  setSelectedCall(null);
+                }}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors",
+                  filter === tab.key
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
         {/* Filter tabs */}
         <div className="flex gap-1">

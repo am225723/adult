@@ -30,14 +30,6 @@ function greeting() {
   return "Good evening";
 }
 
-function todayLabel() {
-  return new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
-
 function fmt12(date: Date): string {
   return date.toLocaleTimeString("en-US", {
     hour: "numeric",

@@ -200,12 +200,16 @@ export function ContactsPage() {
     <div className="flex h-full">
       {/* Left: contact list */}
       <div className="w-72 border-r border-border flex flex-col shrink-0">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <span className="text-sm font-medium text-foreground">Contacts</span>
+        {/* Header */}
+        <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold font-display text-primary">Contacts</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage your network</p>
+          </div>
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7"
+            className="h-7 w-7 shrink-0"
             onClick={() => {
               setShowAdd(true);
               setEditing(false);
