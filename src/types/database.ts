@@ -1117,7 +1117,7 @@ export type Database = {
         Row: {
           id: string
           workspace_id: string | null
-          event_types: Json
+          event_types: string[]
           secret: string
           is_active: boolean
           created_at: string
@@ -1126,7 +1126,7 @@ export type Database = {
         Insert: {
           id?: string
           workspace_id?: string | null
-          event_types?: Json
+          event_types?: string[]
           secret: string
           is_active?: boolean
           created_at?: string
@@ -1135,7 +1135,7 @@ export type Database = {
         Update: {
           id?: string
           workspace_id?: string | null
-          event_types?: Json
+          event_types?: string[]
           secret?: string
           is_active?: boolean
           created_at?: string
