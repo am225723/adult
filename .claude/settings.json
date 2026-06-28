@@ -10,6 +10,11 @@
       "mcp__Supabase__list_edge_functions",
       "mcp__Supabase__get_project",
       "mcp__Supabase__get_project_url",
+      "mcp__Supabase__apply_migration",
+      "mcp__Supabase__execute_sql",
+      "mcp__Supabase__deploy_edge_function",
+      "mcp__Supabase__list_tables",
+      "mcp__Supabase__get_logs",
       "Bash(git *)",
       "Bash(find *)",
       "Bash(ls *)",
@@ -20,7 +25,12 @@
       "Bash(cat *)",
       "Bash(pwd)",
       "Bash(whoami)",
-      "Bash(which *)"
+      "Bash(which *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr status *)",
+      "Bash(gh pr checkout *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr list *)"
     ]
   }
 }
