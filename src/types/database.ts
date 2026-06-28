@@ -1004,6 +1004,201 @@ export type Database = {
           },
         ]
       }
+      admin_quo_contacts: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          external_id: string
+          first_name: string | null
+          last_name: string | null
+          emails: Json
+          primary_phone: string | null
+          company: string | null
+          role: string | null
+          custom_fields: Json
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          external_id: string
+          first_name?: string | null
+          last_name?: string | null
+          emails?: Json
+          primary_phone?: string | null
+          company?: string | null
+          role?: string | null
+          custom_fields?: Json
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          external_id?: string
+          first_name?: string | null
+          last_name?: string | null
+          emails?: Json
+          primary_phone?: string | null
+          company?: string | null
+          role?: string | null
+          custom_fields?: Json
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_quo_contacts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_quo_tasks: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          external_id: string
+          title: string
+          description: string | null
+          status: string
+          due_date: string | null
+          assignee_id: string | null
+          conversation_id: string | null
+          created_at: string
+          updated_at: string
+          metadata: Json
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          external_id: string
+          title: string
+          description?: string | null
+          status?: string
+          due_date?: string | null
+          assignee_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          updated_at?: string
+          metadata?: Json
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          external_id?: string
+          title?: string
+          description?: string | null
+          status?: string
+          due_date?: string | null
+          assignee_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          updated_at?: string
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_quo_tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_quo_webhooks: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          event_types: string[]
+          secret: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          event_types?: string[]
+          secret: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          event_types?: string[]
+          secret?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_quo_webhooks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_quo_webhook_events: {
+        Row: {
+          id: string
+          workspace_id: string | null
+          webhook_id: string | null
+          event_type: string
+          event_data: Json
+          processed: boolean
+          processed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id?: string | null
+          webhook_id?: string | null
+          event_type: string
+          event_data: Json
+          processed?: boolean
+          processed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string | null
+          webhook_id?: string | null
+          event_type?: string
+          event_data?: Json
+          processed?: boolean
+          processed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_quo_webhook_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "admin_workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_quo_webhook_events_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "admin_quo_webhooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_projects: {
         Row: {
           archived: boolean | null
