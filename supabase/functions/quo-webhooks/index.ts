@@ -14,109 +14,104 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 interface QuoWebhookEvent {
   id: string;
   type: string;
-  timestamp: string;
-  data: Record<string, unknown>;
-  context?: Record<string, unknown>;
-  resource?: Record<string, unknown>;
+  createdAt: string;
+  data: { object: Record<string, unknown> };
 }
 
-async function validateSignature(body: string, signature: string, secret: string): Promise<boolean> {
+// Header: openphone-signature
+// Format: hmac;1;<timestamp>;<base64_hmac_sha256>
+// Signing input: <timestamp>.<body>
+async function validateSignature(body: string, signatureHeader: string, secret: string): Promise<boolean> {
   try {
-    const keyData = Uint8Array.from(atob(secret), (c) => c.charCodeAt(0));
+    const parts = signatureHeader.split(";");
+    if (parts.length !== 4 || parts[0] !== "hmac") return false;
+    const timestamp = parts[2];
+    const receivedSig = parts[3];
+    const signingInput = `${timestamp}.${body}`;
     const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    const computedSignature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
-    const computedHex = Array.from(new Uint8Array(computedSignature))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    const normalizedSig = signature.startsWith("sha256=") ? signature.slice(7) : signature;
-    return computedHex === normalizedSig;
+
+    // Try 1: secret decoded from base64
+    try {
+      const keyData = Uint8Array.from(atob(secret), (c) => c.charCodeAt(0));
+      const key = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(signingInput));
+      const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
+      if (computed === receivedSig) return true;
+    } catch { /* ignore */ }
+
+    // Try 2: secret as raw UTF-8
+    try {
+      const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(signingInput));
+      const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
+      if (computed === receivedSig) return true;
+    } catch { /* ignore */ }
+
+    return false;
   } catch {
     return false;
   }
 }
 
-async function handleMessageReceived(event: QuoWebhookEvent, workspaceId: string) {
-  const resource = event.resource as Record<string, unknown>;
-  const context = event.context as Record<string, unknown>;
+async function handleMessageReceived(obj: Record<string, unknown>, workspaceId: string) {
   const { error } = await supabase.from("admin_phone_messages").upsert({
     workspace_id: workspaceId,
-    external_id: resource.id,
-    direction: "incoming",
-    body: resource.body,
-    phone_account_id: context?.phoneNumberId,
-    occurred_at: resource.createdAt,
-    conversation_id: context?.conversationId,
-    message_status: "received",
-    metadata: { event_id: event.id },
+    external_id: obj.id,
+    direction: obj.direction || "incoming",
+    body: obj.body,
+    phone_account_id: obj.phoneNumberId,
+    occurred_at: obj.createdAt,
+    conversation_id: obj.conversationId,
+    message_status: obj.status || "received",
+    metadata: { from: obj.from, to: obj.to },
   });
   if (error) console.error("Error storing received message:", error);
 }
 
-async function handleMessageDelivered(event: QuoWebhookEvent, workspaceId: string) {
-  const resource = event.resource as Record<string, unknown>;
+async function handleMessageDelivered(obj: Record<string, unknown>, workspaceId: string) {
   const { error } = await supabase.from("admin_phone_messages")
     .update({ message_status: "delivered", metadata: { delivered_at: new Date().toISOString() } })
-    .eq("external_id", resource.id)
+    .eq("external_id", obj.id)
     .eq("workspace_id", workspaceId);
   if (error) console.error("Error updating message delivery:", error);
 }
 
-async function handleTaskCreated(event: QuoWebhookEvent, workspaceId: string) {
-  const resource = event.resource as Record<string, unknown>;
-  const { error } = await supabase.from("admin_quo_tasks").upsert({
+async function handleCallCompleted(obj: Record<string, unknown>, workspaceId: string) {
+  const { error } = await supabase.from("admin_phone_calls").upsert({
     workspace_id: workspaceId,
-    external_id: resource.id,
-    title: resource.title,
-    description: resource.description,
-    status: resource.status || "open",
-    due_date: resource.dueDate,
-    created_at: resource.createdAt,
-    updated_at: resource.updatedAt,
+    external_id: obj.id,
+    direction: obj.direction,
+    status: obj.status,
+    duration_seconds: obj.duration,
+    occurred_at: obj.createdAt,
+    phone_account_id: obj.phoneNumberId,
+    metadata: { from: obj.from, to: obj.to },
   });
-  if (error) console.error("Error storing created task:", error);
+  if (error) console.error("Error storing completed call:", error);
 }
 
-async function handleContactUpdated(event: QuoWebhookEvent, workspaceId: string) {
-  const resource = event.resource as Record<string, unknown>;
-  const defaultFields = resource.defaultFields as Record<string, unknown>;
+async function handleVoicemailCompleted(obj: Record<string, unknown>, workspaceId: string) {
+  const { error } = await supabase.from("admin_phone_calls")
+    .update({ voicemail_transcript: obj.transcript, voicemail_url: obj.recordingUrl })
+    .eq("external_id", obj.callId)
+    .eq("workspace_id", workspaceId);
+  if (error) console.error("Error updating voicemail:", error);
+}
+
+async function handleContactUpdated(obj: Record<string, unknown>, workspaceId: string) {
+  const defaultFields = obj.defaultFields as Record<string, unknown> | undefined;
   const { error } = await supabase.from("admin_quo_contacts").upsert({
     workspace_id: workspaceId,
-    external_id: resource.id,
+    external_id: obj.id,
     first_name: defaultFields?.firstName,
     last_name: defaultFields?.lastName,
     primary_phone: (defaultFields?.phoneNumbers as Array<Record<string, unknown>>)?.[0]?.value,
     emails: defaultFields?.emails,
     company: defaultFields?.company,
     role: defaultFields?.role,
-    custom_fields: resource.customFields || {},
+    custom_fields: (obj.customFields as Record<string, unknown>) || {},
   });
   if (error) console.error("Error storing updated contact:", error);
-}
-
-async function handleCallCompleted(event: QuoWebhookEvent, workspaceId: string) {
-  const resource = event.resource as Record<string, unknown>;
-  const context = event.context as Record<string, unknown>;
-  const { error } = await supabase.from("admin_phone_calls").upsert({
-    workspace_id: workspaceId,
-    external_id: resource.id,
-    direction: resource.direction,
-    status: resource.status,
-    duration_seconds: resource.duration,
-    occurred_at: resource.createdAt,
-    phone_account_id: context?.phoneNumberId,
-    metadata: { event_id: event.id },
-  });
-  if (error) console.error("Error storing completed call:", error);
-}
-
-async function handleVoicemailCompleted(event: QuoWebhookEvent, workspaceId: string) {
-  const resource = event.resource as Record<string, unknown>;
-  const { error } = await supabase.from("admin_phone_calls")
-    .update({ voicemail_transcript: resource.transcript, voicemail_url: resource.url })
-    .eq("external_id", resource.callId)
-    .eq("workspace_id", workspaceId);
-  if (error) console.error("Error updating voicemail:", error);
 }
 
 Deno.serve(async (req: Request) => {
@@ -130,6 +125,7 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.text();
     const event = JSON.parse(body) as QuoWebhookEvent;
+    const signatureHeader = req.headers.get("openphone-signature") ?? "";
 
     const { data: webhooks } = await supabase.from("admin_quo_webhooks").select("*").eq("is_active", true);
     if (!webhooks || webhooks.length === 0) {
@@ -139,16 +135,12 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const incomingSig =
-      req.headers.get("x-quo-signature") ||
-      req.headers.get("x-openphone-signature") ||
-      "";
-    console.log(`Incoming signature header: ${incomingSig ? "present" : "missing"}, event type: ${event.type}`);
-
     let validWebhook = null;
     for (const webhook of webhooks) {
-      const isValid = await validateSignature(body, incomingSig, webhook.secret);
-      if (isValid) { validWebhook = webhook; break; }
+      if (await validateSignature(body, signatureHeader, webhook.secret)) {
+        validWebhook = webhook;
+        break;
+      }
     }
 
     if (!validWebhook) {
@@ -159,6 +151,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const obj = event.data?.object ?? {};
+
     await supabase.from("admin_quo_webhook_events").insert({
       workspace_id: validWebhook.workspace_id,
       webhook_id: validWebhook.id,
@@ -167,11 +161,12 @@ Deno.serve(async (req: Request) => {
     });
 
     switch (event.type) {
-      case "message.received": await handleMessageReceived(event, validWebhook.workspace_id); break;
-      case "message.delivered": await handleMessageDelivered(event, validWebhook.workspace_id); break;
-      case "call.completed": await handleCallCompleted(event, validWebhook.workspace_id); break;
-      case "call.voicemail.completed": await handleVoicemailCompleted(event, validWebhook.workspace_id); break;
-      case "contact.updated": await handleContactUpdated(event, validWebhook.workspace_id); break;
+      case "message.received": await handleMessageReceived(obj, validWebhook.workspace_id); break;
+      case "message.delivered": await handleMessageDelivered(obj, validWebhook.workspace_id); break;
+      case "call.completed": await handleCallCompleted(obj, validWebhook.workspace_id); break;
+      case "call.recording.completed":
+      case "call.voicemail.completed": await handleVoicemailCompleted(obj, validWebhook.workspace_id); break;
+      case "contact.updated": await handleContactUpdated(obj, validWebhook.workspace_id); break;
       default: console.log(`Unhandled event type: ${event.type}`);
     }
 
