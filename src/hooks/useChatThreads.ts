@@ -35,7 +35,7 @@ export function useChatThreads() {
   useEffect(() => {
     if (!user || !selectedWorkspaceId) return;
     const channel = supabase
-      .channel(`chat-threads-rt-${selectedWorkspaceId}`)
+      .channel(`chat-threads-rt-${selectedWorkspaceId}-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "admin_chat_threads" },
