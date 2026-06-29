@@ -101,16 +101,23 @@ async function handleCallRinging(obj: Record<string, unknown>, workspaceId: stri
 }
 
 async function handleCallTranscript(obj: Record<string, unknown>, workspaceId: string) {
+  // Fetch existing metadata and merge to avoid overwriting from/to and other fields
+  const { data: existing } = await supabase.from("admin_phone_calls")
+    .select("metadata").eq("external_id", obj.callId).eq("workspace_id", workspaceId).single();
+  const merged = { ...(existing?.metadata ?? {}), transcript: obj.transcript, dialogue: obj.dialogue };
   const { error } = await supabase.from("admin_phone_calls")
-    .update({ metadata: { transcript: obj.transcript, dialogue: obj.dialogue } })
+    .update({ metadata: merged })
     .eq("external_id", obj.callId)
     .eq("workspace_id", workspaceId);
   if (error) console.error("Error updating call transcript:", error);
 }
 
 async function handleCallSummary(obj: Record<string, unknown>, workspaceId: string) {
+  const { data: existing } = await supabase.from("admin_phone_calls")
+    .select("metadata").eq("external_id", obj.callId).eq("workspace_id", workspaceId).single();
+  const merged = { ...(existing?.metadata ?? {}), summary: obj.summary, keywords: obj.keywords };
   const { error } = await supabase.from("admin_phone_calls")
-    .update({ metadata: { summary: obj.summary, keywords: obj.keywords } })
+    .update({ metadata: merged })
     .eq("external_id", obj.callId)
     .eq("workspace_id", workspaceId);
   if (error) console.error("Error updating call summary:", error);

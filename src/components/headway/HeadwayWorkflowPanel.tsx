@@ -81,9 +81,7 @@ export function HeadwayWorkflowPanel({
   }
 
   function handleOpenHeadway() {
-    window.open(workflow!.headwayLink, "_blank", "noopener,noreferrer");
     updateStatus("opened");
-    // Fire-and-forget: pass snapshot to avoid race if state changes before async resolves
     saveWorkflow.mutate({ status: "opened", _workflowSnapshot: workflow });
     advance();
   }
@@ -417,30 +415,22 @@ function StepOpenHeadway({
 }) {
   const [blocked, setBlocked] = useState(false);
 
-  function handleLoad(e: React.SyntheticEvent<HTMLIFrameElement>) {
-    // If the iframe loaded but is blank due to X-Frame-Options, contentDocument is inaccessible
-    try {
-      const doc = (e.target as HTMLIFrameElement).contentDocument;
-      if (!doc || doc.body.innerHTML === "") setBlocked(true);
-    } catch {
-      setBlocked(true);
-    }
+  function openExternal() {
+    onOpen();
+    window.open(headwayLink, "_blank", "noopener,noreferrer");
   }
 
   return (
     <div className="flex flex-col gap-3 h-full">
       <div className="flex items-center justify-between shrink-0">
         <h3 className="text-sm font-semibold text-foreground">Headway Patient Profile</h3>
-        <a
-          href={headwayLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={onOpen}
+        <button
+          onClick={openExternal}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <ExternalLink size={12} />
           Open in tab
-        </a>
+        </button>
       </div>
 
       {blocked ? (
@@ -452,23 +442,19 @@ function StepOpenHeadway({
               Headway doesn't allow embedding. Open it in a new tab to view the patient profile, then return here.
             </p>
           </div>
-          <a
-            href={headwayLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={onOpen}
+          <button
+            onClick={openExternal}
             className="flex items-center gap-2 py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
           >
             <ExternalLink size={14} />
             Open Headway in New Tab
-          </a>
+          </button>
         </div>
       ) : (
         <iframe
           src={headwayLink}
           className="flex-1 rounded-xl border border-border bg-muted/30 min-h-[400px]"
           title="Headway Patient Profile"
-          onLoad={handleLoad}
           onError={() => setBlocked(true)}
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
         />
