@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as crypto from "https://deno.land/std@0.208.0/crypto/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +20,7 @@ interface QuoWebhookEvent {
 // Header: openphone-signature
 // Format: hmac;1;<timestamp>;<base64_hmac_sha256>
 // Signing input: <timestamp>.<body>
+// Key: base64-decode the secret to get raw bytes
 async function validateSignature(body: string, signatureHeader: string, secret: string): Promise<boolean> {
   try {
     const parts = signatureHeader.split(";");
@@ -29,26 +29,15 @@ async function validateSignature(body: string, signatureHeader: string, secret: 
     const receivedSig = parts[3];
     const signingInput = `${timestamp}.${body}`;
     const encoder = new TextEncoder();
+    const subtle = globalThis.crypto.subtle;
 
-    // Try 1: secret decoded from base64
-    try {
-      const keyData = Uint8Array.from(atob(secret), (c) => c.charCodeAt(0));
-      const key = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(signingInput));
-      const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
-      if (computed === receivedSig) return true;
-    } catch { /* ignore */ }
-
-    // Try 2: secret as raw UTF-8
-    try {
-      const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(signingInput));
-      const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
-      if (computed === receivedSig) return true;
-    } catch { /* ignore */ }
-
-    return false;
-  } catch {
+    const keyData = Uint8Array.from(atob(secret), (c) => c.charCodeAt(0));
+    const key = await subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sig = await subtle.sign("HMAC", key, encoder.encode(signingInput));
+    const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
+    return computed === receivedSig;
+  } catch (err) {
+    console.error("validateSignature error:", err);
     return false;
   }
 }
