@@ -59,15 +59,35 @@ export function LoginPage() {
 
   async function handlePasskeyLogin() {
     setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPasskey();
-    if (error) {
-      if (error.message !== "The operation either timed out or was not allowed.") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const authClient = supabase.auth as any;
+      if (typeof authClient.signInWithPasskey !== "function") {
         toast({
           variant: "destructive",
-          title: "Passkey sign-in failed",
-          description: error.message,
+          title: "Passkey not supported",
+          description: "Please update the app or use a different sign-in method.",
         });
+        setSubmitting(false);
+        return;
       }
+      const { error } = await authClient.signInWithPasskey();
+      if (error) {
+        if (error.message !== "The operation either timed out or was not allowed.") {
+          toast({
+            variant: "destructive",
+            title: "Passkey sign-in failed",
+            description: error.message,
+          });
+        }
+        setSubmitting(false);
+      }
+    } catch (err: unknown) {
+      toast({
+        variant: "destructive",
+        title: "Passkey sign-in failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+      });
       setSubmitting(false);
     }
   }
