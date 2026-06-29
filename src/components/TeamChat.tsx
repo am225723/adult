@@ -540,7 +540,7 @@ export function TeamChat() {
 
       <div className="flex flex-col md:flex-row h-full">
         {/* Thread list */}
-        <div className="w-full md:w-72 shrink-0 border-b md:border-b-0 md:border-r border-border flex flex-col min-w-0">
+        <div className="w-full md:w-72 flex-1 md:flex-none md:shrink-0 border-b md:border-b-0 md:border-r border-border flex flex-col min-w-0">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div>
               <h2 className="text-sm font-semibold">Team Chat</h2>

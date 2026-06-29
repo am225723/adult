@@ -115,11 +115,11 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] bg-background overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-background overflow-hidden">
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {/* Sidebar (desktop only) */}
-      <aside className="hidden md:flex w-16 flex-col items-center py-4 gap-2 bg-sidebar border-r border-sidebar-border shrink-0">
+      {/* Sidebar (hidden — replaced by bottom nav) */}
+      <aside className="hidden w-16 flex-col items-center py-4 gap-2 bg-sidebar border-r border-sidebar-border shrink-0">
         {/* Workspace switcher / App mark */}
         {workspaces.length > 1 ? (
           <DropdownMenu>
@@ -276,35 +276,26 @@ export function AppLayout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-h-0 overflow-auto flex flex-col pb-14 md:pb-0">
+      <main className="flex-1 min-h-0 overflow-auto flex flex-col pb-16">
         <Outlet />
       </main>
 
-      {/* Bottom navigation (mobile only) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-sidebar-border flex items-center justify-around px-1">
-        {/* Search button (mobile) */}
-        <button
-          onClick={() => setSearchOpen(true)}
-          className="flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-xl text-sidebar-foreground hover:bg-sidebar-accent transition-all"
-        >
-          <Search size={22} strokeWidth={1.75} />
-          <span className="text-[9px] font-semibold">Search</span>
-        </button>
-
-        {NAV_ITEMS.slice(0, 4).map(({ to, icon: Icon, label }) => (
+      {/* Bottom navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-sidebar-border flex items-center justify-around px-1 z-40">
+        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             title={label}
             className={({ isActive }) =>
               cn(
-                "flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-xl transition-all text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                "flex flex-col items-center justify-center gap-1 w-12 h-14 rounded-xl transition-all text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 isActive &&
                   "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
               )
             }
           >
-            <Icon size={22} strokeWidth={1.75} />
+            <Icon size={20} strokeWidth={1.75} />
             <span className="text-[9px] font-semibold truncate">{label}</span>
           </NavLink>
         ))}
