@@ -69,6 +69,7 @@ function groupMessagesByContact(messages: PhoneMessage[]) {
 }
 
 interface Conversation {
+  threadKey: string;
   contactId: string;
   contactName: string;
   messages: PhoneMessage[];
@@ -79,18 +80,18 @@ interface Conversation {
 function ConversationRow({
   conversation,
   onSelect,
-  selectedContactId,
+  selectedThreadKey,
 }: {
   conversation: Conversation;
-  onSelect: (contactId: string) => void;
-  selectedContactId?: string;
+  onSelect: (threadKey: string) => void;
+  selectedThreadKey?: string;
 }) {
-  const isSelected = selectedContactId === conversation.contactId;
+  const isSelected = selectedThreadKey === conversation.threadKey;
   const lastMsg = conversation.lastMessage;
 
   return (
     <button
-      onClick={() => onSelect(conversation.contactId)}
+      onClick={() => onSelect(conversation.threadKey)}
       className={cn(
         "w-full flex items-start gap-3 px-4 py-3 border-b border-border hover:bg-muted/50 transition-colors text-left",
         isSelected && "bg-muted",
@@ -310,7 +311,7 @@ export function ChatPage() {
   const [activeTab, setActiveTab] = useState<Tab>("sms");
   const { data: messages = [], isLoading, error } = usePhoneMessages("all");
   const { data: contacts = [] } = useContacts();
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedThreadKey, setSelectedThreadKey] = useState<string | null>(null);
   const headwayWorkflow = useHeadwayWorkflow();
 
   // Build a lookup map for contact display names
@@ -319,19 +320,20 @@ export function ChatPage() {
   const grouped = groupMessagesByContact(messages);
   const conversations: Conversation[] = Array.from(grouped.entries())
     .map(([threadKey, msgs]) => {
-      // Resolve contact id from thread key or from messages
+      // Real contact UUID (or "unknown") — never the thread key string
       const contactId =
         threadKey.startsWith("contact:") ? threadKey.slice(8) :
-        msgs.find((m) => m.contact_id)?.contact_id ?? threadKey;
+        (msgs.find((m) => m.contact_id)?.contact_id ?? "unknown");
 
       // Resolve display name: contact name > phone number from metadata > thread key
-      let contactName = contactId !== threadKey ? (contactNameMap.get(contactId) ?? null) : null;
+      let contactName = contactId !== "unknown" ? (contactNameMap.get(contactId) ?? null) : null;
       if (!contactName) {
         const phone = getPhoneFromMetadata(msgs[0]);
         contactName = phone ?? (threadKey === "unknown" ? "Unknown" : threadKey.replace(/^(conv|phone|contact):/, ""));
       }
 
       return {
+        threadKey,
         contactId,
         contactName,
         messages: msgs,
@@ -345,8 +347,8 @@ export function ChatPage() {
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
 
-  const selectedConversation = selectedContactId
-    ? conversations.find((c) => c.contactId === selectedContactId)
+  const selectedConversation = selectedThreadKey
+    ? conversations.find((c) => c.threadKey === selectedThreadKey)
     : null;
 
   return (
@@ -403,8 +405,8 @@ export function ChatPage() {
             isLoading={isLoading}
             error={error}
             conversations={conversations}
-            selectedContactId={selectedContactId}
-            setSelectedContactId={setSelectedContactId}
+            selectedThreadKey={selectedThreadKey}
+            setSelectedThreadKey={setSelectedThreadKey}
             selectedConversation={selectedConversation}
             onStartIntake={headwayWorkflow.startWorkflow}
           />
@@ -419,8 +421,8 @@ function SmsTab({
   isLoading,
   error,
   conversations,
-  selectedContactId,
-  setSelectedContactId,
+  selectedThreadKey,
+  setSelectedThreadKey,
   selectedConversation,
   onStartIntake,
 }: {
@@ -428,8 +430,8 @@ function SmsTab({
   isLoading: boolean;
   error: Error | null;
   conversations: Conversation[];
-  selectedContactId: string | null;
-  setSelectedContactId: (id: string | null) => void;
+  selectedThreadKey: string | null;
+  setSelectedThreadKey: (key: string | null) => void;
   selectedConversation: Conversation | null;
   onStartIntake: (params: { headwayLink: string; senderName?: string; quoMessageId?: string }) => void;
 }) {
@@ -467,10 +469,10 @@ function SmsTab({
         <div className="flex-1 overflow-auto">
           {conversations.map((conv) => (
             <ConversationRow
-              key={conv.contactId}
+              key={conv.threadKey}
               conversation={conv}
-              onSelect={setSelectedContactId}
-              selectedContactId={selectedContactId || undefined}
+              onSelect={setSelectedThreadKey}
+              selectedThreadKey={selectedThreadKey || undefined}
             />
           ))}
         </div>
@@ -481,7 +483,7 @@ function SmsTab({
         <div className="hidden md:flex flex-1">
           <ConversationDetail
             conversation={selectedConversation}
-            onClose={() => setSelectedContactId(null)}
+            onClose={() => setSelectedThreadKey(null)}
             onStartIntake={onStartIntake}
           />
         </div>
@@ -492,7 +494,7 @@ function SmsTab({
         <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex animate-in fade-in slide-in-from-bottom">
           <ConversationDetail
             conversation={selectedConversation}
-            onClose={() => setSelectedContactId(null)}
+            onClose={() => setSelectedThreadKey(null)}
             onStartIntake={onStartIntake}
           />
         </div>
