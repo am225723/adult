@@ -41,14 +41,29 @@ function dateSeparatorLabel(iso: string | null | undefined): string {
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
+function getPhoneFromMetadata(msg: PhoneMessage): string | null {
+  if (!msg.metadata) return null;
+  const from = msg.metadata.from;
+  if (typeof from === "string") return from;
+  if (Array.isArray(from) && typeof from[0] === "string") return from[0];
+  return null;
+}
+
+function getThreadKey(msg: PhoneMessage): string {
+  // Prefer conversation_id (Quo's stable thread ID), then contact_id, then phone number, then unknown
+  if (msg.conversation_id) return `conv:${msg.conversation_id}`;
+  if (msg.contact_id) return `contact:${msg.contact_id}`;
+  const phone = getPhoneFromMetadata(msg);
+  if (phone) return `phone:${phone}`;
+  return "unknown";
+}
+
 function groupMessagesByContact(messages: PhoneMessage[]) {
   const grouped = new Map<string, PhoneMessage[]>();
   for (const msg of messages) {
-    const contactId = msg.contact_id || "unknown";
-    if (!grouped.has(contactId)) {
-      grouped.set(contactId, []);
-    }
-    grouped.get(contactId)!.push(msg);
+    const key = getThreadKey(msg);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(msg);
   }
   return grouped;
 }
@@ -303,16 +318,27 @@ export function ChatPage() {
 
   const grouped = groupMessagesByContact(messages);
   const conversations: Conversation[] = Array.from(grouped.entries())
-    .map(([contactId, msgs]) => ({
-      contactId,
-      contactName:
-        contactId === "unknown"
-          ? "Unknown"
-          : contactNameMap.get(contactId) ?? "Unknown",
-      messages: msgs,
-      lastMessage: msgs[0],
-      unreadCount: msgs.filter((m) => !m.is_read).length,
-    }))
+    .map(([threadKey, msgs]) => {
+      // Resolve contact id from thread key or from messages
+      const contactId =
+        threadKey.startsWith("contact:") ? threadKey.slice(8) :
+        msgs.find((m) => m.contact_id)?.contact_id ?? threadKey;
+
+      // Resolve display name: contact name > phone number from metadata > thread key
+      let contactName = contactId !== threadKey ? (contactNameMap.get(contactId) ?? null) : null;
+      if (!contactName) {
+        const phone = getPhoneFromMetadata(msgs[0]);
+        contactName = phone ?? (threadKey === "unknown" ? "Unknown" : threadKey.replace(/^(conv|phone|contact):/, ""));
+      }
+
+      return {
+        contactId,
+        contactName,
+        messages: msgs,
+        lastMessage: msgs[0],
+        unreadCount: msgs.filter((m) => !m.is_read).length,
+      };
+    })
     .sort((a, b) => {
       const aTime = a.lastMessage?.occurred_at || "";
       const bTime = b.lastMessage?.occurred_at || "";

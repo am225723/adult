@@ -10,6 +10,8 @@ export interface PhoneMessage {
   occurred_at: string | null;
   is_read: boolean | null;
   contact_id: string | null;
+  conversation_id: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 type MessageFilter = "unread" | "all" | "today";
