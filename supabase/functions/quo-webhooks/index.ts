@@ -53,7 +53,7 @@ async function handleMessageReceived(obj: Record<string, unknown>, workspaceId: 
     conversation_id: obj.conversationId,
     message_status: obj.status || "received",
     metadata: { from: obj.from, to: obj.to },
-  });
+  }, { onConflict: "external_id" });
   if (error) console.error("Error storing received message:", error);
 }
 
@@ -75,7 +75,7 @@ async function handleCallCompleted(obj: Record<string, unknown>, workspaceId: st
     occurred_at: obj.createdAt,
     phone_account_id: obj.phoneNumberId,
     metadata: { from: obj.from, to: obj.to },
-  });
+  }, { onConflict: "external_id" });
   if (error) console.error("Error storing completed call:", error);
 }
 
@@ -99,7 +99,7 @@ async function handleContactUpdated(obj: Record<string, unknown>, workspaceId: s
     company: defaultFields?.company,
     role: defaultFields?.role,
     custom_fields: (obj.customFields as Record<string, unknown>) || {},
-  });
+  }, { onConflict: "external_id" });
   if (error) console.error("Error storing updated contact:", error);
 }
 
