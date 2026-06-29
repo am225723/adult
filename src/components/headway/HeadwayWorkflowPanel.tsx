@@ -300,9 +300,9 @@ export function HeadwayWorkflowPanel({
         </div>
 
         {/* Step content */}
-        <div className="flex-1 overflow-auto p-5">
+        <div className={cn("flex-1 overflow-auto", step === 2 ? "p-3 flex flex-col" : "p-5")}>
           {step === 1 && <StepDetected workflow={workflow} onNext={advance} />}
-          {step === 2 && <StepOpenHeadway workflow={workflow} onOpen={handleOpenHeadway} onSkip={advance} />}
+          {step === 2 && <StepOpenHeadway headwayLink={workflow.headwayLink} onOpen={handleOpenHeadway} onSkip={advance} />}
           {step === 3 && (
             <PatientDataForm
               initialData={clientData}
@@ -407,44 +407,78 @@ function StepDetected({
 // ── Step 2: Open Headway ──────────────────────────────────────────────────────
 
 function StepOpenHeadway({
+  headwayLink,
   onOpen,
   onSkip,
 }: {
+  headwayLink: string;
   onOpen: () => void;
   onSkip: () => void;
 }) {
+  const [blocked, setBlocked] = useState(false);
+
+  function handleLoad(e: React.SyntheticEvent<HTMLIFrameElement>) {
+    // If the iframe loaded but is blank due to X-Frame-Options, contentDocument is inaccessible
+    try {
+      const doc = (e.target as HTMLIFrameElement).contentDocument;
+      if (!doc || doc.body.innerHTML === "") setBlocked(true);
+    } catch {
+      setBlocked(true);
+    }
+  }
+
   return (
-    <div className="space-y-5">
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-1">Open Headway Patient Profile</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Open Headway in a new tab to view the patient profile. Sign in if prompted. Do not share your Headway credentials with this app.
-        </p>
+    <div className="flex flex-col gap-3 h-full">
+      <div className="flex items-center justify-between shrink-0">
+        <h3 className="text-sm font-semibold text-foreground">Headway Patient Profile</h3>
+        <a
+          href={headwayLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onOpen}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ExternalLink size={12} />
+          Open in tab
+        </a>
       </div>
 
-      <button
-        onClick={onOpen}
-        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
-      >
-        <ExternalLink size={14} />
-        Open Headway in New Tab
-      </button>
-
-      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
-        <p className="text-xs font-semibold text-foreground">Instructions</p>
-        <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-          <li>Click "Open Headway in New Tab" above</li>
-          <li>Sign in to Headway if prompted</li>
-          <li>Navigate to the patient's profile page</li>
-          <li>Return here and click Continue</li>
-        </ol>
-      </div>
+      {blocked ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 rounded-xl border border-border bg-muted/30 p-6 text-center">
+          <AlertCircle size={24} className="text-amber-500" />
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1">Headway blocked embedding</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Headway doesn't allow embedding. Open it in a new tab to view the patient profile, then return here.
+            </p>
+          </div>
+          <a
+            href={headwayLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onOpen}
+            className="flex items-center gap-2 py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+          >
+            <ExternalLink size={14} />
+            Open Headway in New Tab
+          </a>
+        </div>
+      ) : (
+        <iframe
+          src={headwayLink}
+          className="flex-1 rounded-xl border border-border bg-muted/30 min-h-[400px]"
+          title="Headway Patient Profile"
+          onLoad={handleLoad}
+          onError={() => setBlocked(true)}
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+        />
+      )}
 
       <button
         onClick={onSkip}
-        className="w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        className="w-full py-2.5 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
       >
-        I've reviewed Headway — Continue to data entry
+        Continue to Data Entry
       </button>
     </div>
   );

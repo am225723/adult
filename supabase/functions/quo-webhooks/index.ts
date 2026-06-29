@@ -53,7 +53,7 @@ async function handleMessageReceived(obj: Record<string, unknown>, workspaceId: 
     conversation_id: obj.conversationId,
     message_status: obj.status || "received",
     metadata: { from: obj.from, to: obj.to },
-  });
+  }, { onConflict: "external_id" });
   if (error) console.error("Error storing received message:", error);
 }
 
@@ -75,7 +75,7 @@ async function handleCallCompleted(obj: Record<string, unknown>, workspaceId: st
     occurred_at: obj.createdAt,
     phone_account_id: obj.phoneNumberId,
     metadata: { from: obj.from, to: obj.to },
-  });
+  }, { onConflict: "external_id" });
   if (error) console.error("Error storing completed call:", error);
 }
 
@@ -85,6 +85,35 @@ async function handleVoicemailCompleted(obj: Record<string, unknown>, workspaceI
     .eq("external_id", obj.callId)
     .eq("workspace_id", workspaceId);
   if (error) console.error("Error updating voicemail:", error);
+}
+
+async function handleCallRinging(obj: Record<string, unknown>, workspaceId: string) {
+  const { error } = await supabase.from("admin_phone_calls").upsert({
+    workspace_id: workspaceId,
+    external_id: obj.id,
+    direction: obj.direction,
+    status: "ringing",
+    occurred_at: obj.createdAt,
+    phone_account_id: obj.phoneNumberId,
+    metadata: { from: obj.from, to: obj.to },
+  }, { onConflict: "external_id" });
+  if (error) console.error("Error storing ringing call:", error);
+}
+
+async function handleCallTranscript(obj: Record<string, unknown>, workspaceId: string) {
+  const { error } = await supabase.from("admin_phone_calls")
+    .update({ metadata: { transcript: obj.transcript, dialogue: obj.dialogue } })
+    .eq("external_id", obj.callId)
+    .eq("workspace_id", workspaceId);
+  if (error) console.error("Error updating call transcript:", error);
+}
+
+async function handleCallSummary(obj: Record<string, unknown>, workspaceId: string) {
+  const { error } = await supabase.from("admin_phone_calls")
+    .update({ metadata: { summary: obj.summary, keywords: obj.keywords } })
+    .eq("external_id", obj.callId)
+    .eq("workspace_id", workspaceId);
+  if (error) console.error("Error updating call summary:", error);
 }
 
 async function handleContactUpdated(obj: Record<string, unknown>, workspaceId: string) {
@@ -99,7 +128,7 @@ async function handleContactUpdated(obj: Record<string, unknown>, workspaceId: s
     company: defaultFields?.company,
     role: defaultFields?.role,
     custom_fields: (obj.customFields as Record<string, unknown>) || {},
-  });
+  }, { onConflict: "external_id" });
   if (error) console.error("Error storing updated contact:", error);
 }
 
@@ -153,8 +182,11 @@ Deno.serve(async (req: Request) => {
       case "message.received": await handleMessageReceived(obj, validWebhook.workspace_id); break;
       case "message.delivered": await handleMessageDelivered(obj, validWebhook.workspace_id); break;
       case "call.completed": await handleCallCompleted(obj, validWebhook.workspace_id); break;
+      case "call.ringing": await handleCallRinging(obj, validWebhook.workspace_id); break;
       case "call.recording.completed":
       case "call.voicemail.completed": await handleVoicemailCompleted(obj, validWebhook.workspace_id); break;
+      case "call.transcript.completed": await handleCallTranscript(obj, validWebhook.workspace_id); break;
+      case "call.summary.completed": await handleCallSummary(obj, validWebhook.workspace_id); break;
       case "contact.updated": await handleContactUpdated(obj, validWebhook.workspace_id); break;
       default: console.log(`Unhandled event type: ${event.type}`);
     }
