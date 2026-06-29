@@ -44,7 +44,7 @@ export function useThreadReadReceipts(messageIds: string[]) {
     if (!user || !hasMessages) return;
     const queryKeyIds = receiptKey.split("|");
     const channel = supabase
-      .channel(`read-receipts-${firstMessageId}`)
+      .channel(`read-receipts-${firstMessageId}-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "admin_message_read_receipts" },
