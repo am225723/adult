@@ -65,9 +65,26 @@ async function syncContactsForWorkspace(workspaceId: string) {
           });
 
           if (error) {
-            console.error(`Error upserting contact ${contact.id}:`, error);
+            console.error(`Error upserting quo_contact ${contact.id}:`, error);
             errors++;
           } else {
+            // Also sync into admin_contacts so they appear in the app contact list
+            const firstName = defaultFields?.firstName as string | undefined;
+            const lastName = defaultFields?.lastName as string | undefined;
+            const displayName = [firstName, lastName].filter(Boolean).join(" ") || (phoneNumbers?.value as string) || "Unknown";
+            const emailsArr = defaultFields?.emails as Array<Record<string, unknown>> | undefined;
+            const primaryEmail = emailsArr?.[0]?.value as string | undefined;
+            const { error: contactErr } = await supabase.from("admin_contacts").upsert({
+              workspace_id: workspaceId,
+              display_name: displayName,
+              company: (defaultFields?.company as string) ?? null,
+              primary_email: primaryEmail ?? null,
+              primary_phone: (phoneNumbers?.value as string) ?? null,
+              source: "quo",
+              external_id: contact.id as string,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "workspace_id,source,external_id" });
+            if (contactErr) console.error(`Error upserting admin_contact ${contact.id}:`, contactErr);
             synced++;
           }
         } catch (err) {
