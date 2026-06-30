@@ -20,8 +20,14 @@ function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): 
   );
 }
 
+async function getFirstWorkspaceMemberId(workspaceId: string): Promise<string | null> {
+  const { data } = await supabase.from("admin_workspace_members").select("user_id").eq("workspace_id", workspaceId).limit(1).maybeSingle();
+  return data?.user_id ?? null;
+}
+
 async function syncTasksForWorkspace(workspaceId: string) {
   try {
+    const systemUserId = await getFirstWorkspaceMemberId(workspaceId);
     let after: string | undefined;
     let hasMore = true;
     let synced = 0;
@@ -61,9 +67,24 @@ async function syncTasksForWorkspace(workspaceId: string) {
           });
 
           if (error) {
-            console.error(`Error upserting task ${task.id}:`, error);
+            console.error(`Error upserting quo_task ${task.id}:`, error);
             errors++;
           } else {
+            // Also sync into admin_tasks so they appear in the app task list
+            const appStatus = task.status === "done" ? "done" : (task.status === "cancelled" ? "cancelled" : "todo");
+            const { error: taskErr } = await supabase.from("admin_tasks").upsert({
+              workspace_id: workspaceId,
+              title: task.title as string,
+              notes: task.description as string ?? null,
+              status: appStatus,
+              due_date: task.dueDate ?? null,
+              source: "quo",
+              external_id: task.id as string,
+              created_by: systemUserId,
+              tags: ["quo"],
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "workspace_id,source,external_id" });
+            if (taskErr) console.error(`Error upserting admin_task ${task.id}:`, taskErr);
             synced++;
           }
         } catch (err) {

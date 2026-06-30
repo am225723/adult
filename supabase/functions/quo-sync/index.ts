@@ -61,6 +61,9 @@ Deno.serve(async (req: Request) => {
     let totalMessages = 0, totalCalls = 0;
     const fetchErrors: string[] = [];
 
+    // Fetch the last 7 days
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
     for (const pn of phoneNumbers) {
       const { data: existingAcct } = await db.from("admin_phone_accounts").select("id, workspace_id").eq("quo_account_id", pn.id).maybeSingle();
       if (existingAcct && existingAcct.workspace_id !== workspaceId) continue;
@@ -72,7 +75,7 @@ Deno.serve(async (req: Request) => {
       const phoneAccountId = acct.id as string;
 
       // Messages
-      const msgPayload = { phoneNumberId: pn.id, participants: [], maxResults: 50 };
+      const msgPayload = { phoneNumberId: pn.id, participants: [], maxResults: 100, createdAfter: sevenDaysAgo };
       const msgController = new AbortController();
       const msgTimer = setTimeout(() => msgController.abort(), 10_000);
       const msgRes = await fetch(`${QUO_BASE}/messages`, {
@@ -100,7 +103,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Calls
-      const callPayload = { phoneNumberId: pn.id, participants: [], maxResults: 50 };
+      const callPayload = { phoneNumberId: pn.id, participants: [], maxResults: 100, createdAfter: sevenDaysAgo };
       const callController = new AbortController();
       const callTimer = setTimeout(() => callController.abort(), 10_000);
       const callRes = await fetch(`${QUO_BASE}/calls`, {
