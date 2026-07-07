@@ -19,6 +19,8 @@ export interface Task {
   assigned_to: string | null;
   created_by: string | null;
   completed_at: string | null;
+  source: "app" | "quo" | string | null;
+  external_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +33,93 @@ export interface Project {
 }
 
 type TaskFilter = "today" | "upcoming" | "overdue" | "completed" | "all" | "mine" | "unassigned";
+type TaskUpdatePayload = Partial<Omit<Task, "id">>;
+type QuoTaskAction = "update" | "delete" | "complete" | "reopen" | "assign" | "unassign" | "changeDueDate" | "removeDueDate";
+
+const QUO_SYNC_FIELDS = ["title", "notes", "due_date", "status", "assigned_to"] as const;
+
+async function getSessionToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Not authenticated");
+  return session.access_token;
+}
+
+async function callQuoTaskEndpoint(
+  method: "PUT" | "POST" | "DELETE",
+  action: QuoTaskAction,
+  taskId: string,
+  body?: Record<string, unknown>
+) {
+  const token = await getSessionToken();
+  const params = new URLSearchParams({ action, taskId });
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+
+  const response = await fetch(`/functions/v1/quo-tasks?${params.toString()}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.error ?? result?.message ?? `Failed to sync Quo task ${taskId}: ${response.statusText}`);
+  }
+  return result;
+}
+
+function isQuoBackedTask(task: Task): task is Task & { source: "quo"; external_id: string } {
+  return task.source === "quo" && typeof task.external_id === "string" && task.external_id.trim().length > 0;
+}
+
+function hasQuoSyncField(updates: TaskUpdatePayload) {
+  return QUO_SYNC_FIELDS.some((field) => updates[field] !== undefined);
+}
+
+async function syncQuoTaskUpdate(task: Task, updates: TaskUpdatePayload) {
+  if (!isQuoBackedTask(task) || !hasQuoSyncField(updates)) return;
+
+  const taskId = task.external_id;
+  const detailUpdates: Record<string, unknown> = { taskId };
+
+  if (updates.title !== undefined) detailUpdates.title = updates.title;
+  if (updates.notes !== undefined) detailUpdates.description = updates.notes ?? "";
+
+  if (Object.keys(detailUpdates).length > 1) {
+    await callQuoTaskEndpoint("PUT", "update", taskId, detailUpdates);
+  }
+
+  if (updates.due_date !== undefined) {
+    if (updates.due_date) {
+      await callQuoTaskEndpoint("POST", "changeDueDate", taskId, { taskId, dueDate: updates.due_date });
+    } else {
+      await callQuoTaskEndpoint("POST", "removeDueDate", taskId);
+    }
+  }
+
+  if (updates.assigned_to !== undefined) {
+    if (updates.assigned_to) {
+      await callQuoTaskEndpoint("POST", "assign", taskId, { taskId, userId: updates.assigned_to });
+    } else {
+      await callQuoTaskEndpoint("POST", "unassign", taskId);
+    }
+  }
+
+  if (updates.status !== undefined) {
+    if (updates.status === "done") {
+      await callQuoTaskEndpoint("POST", "complete", taskId);
+    } else if (updates.status === "open") {
+      await callQuoTaskEndpoint("POST", "reopen", taskId);
+    } else if (updates.status === "cancelled") {
+      await callQuoTaskEndpoint("DELETE", "delete", taskId);
+    }
+  }
+}
+
+async function syncQuoTaskDelete(task: Task) {
+  if (!isQuoBackedTask(task)) return;
+  await callQuoTaskEndpoint("DELETE", "delete", task.external_id);
+}
 
 export function useTasks(filter: TaskFilter = "all", projectId?: string) {
   const { user } = useAuth();
@@ -187,10 +276,21 @@ export function useUpdateTask() {
       id,
       ...updates
     }: Partial<Omit<Task, "id">> & { id: string }) => {
-      // If completing, set completed_at
+      const { data: currentTask, error: fetchError } = await supabase
+        .from("admin_tasks")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (fetchError) throw fetchError;
+
       if (updates.status === "done" && !updates.completed_at) {
         updates.completed_at = new Date().toISOString();
+      } else if (updates.status !== undefined && updates.status !== "done") {
+        updates.completed_at = null;
       }
+
+      await syncQuoTaskUpdate(currentTask as Task, updates);
+
       const { data, error } = await supabase
         .from("admin_tasks")
         .update({ ...updates, updated_at: new Date().toISOString() })
@@ -212,6 +312,15 @@ export function useDeleteTask() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      const { data: currentTask, error: fetchError } = await supabase
+        .from("admin_tasks")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (fetchError) throw fetchError;
+
+      await syncQuoTaskDelete(currentTask as Task);
+
       const { error } = await supabase.from("admin_tasks").delete().eq("id", id);
       if (error) throw error;
     },
