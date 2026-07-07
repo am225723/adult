@@ -3,11 +3,13 @@ import { supabase } from "@/lib/supabase";
 
 export interface QuoMessage {
   id: string;
-  from: string;
-  to: string[];
-  content: string;
+  from?: string | null;
+  to?: string[] | null;
+  text?: string | null;
+  content?: string | null;
+  body?: string | null;
   direction: "incoming" | "outgoing";
-  status: "received" | "sent" | "delivered" | "failed";
+  status?: "received" | "sent" | "delivered" | "failed" | string;
   createdAt: string;
   conversationId?: string;
 }
@@ -15,6 +17,7 @@ export interface QuoMessage {
 export interface QuoPhoneNumber {
   id: string;
   number: string;
+  formattedNumber?: string | null;
   name?: string;
 }
 
@@ -26,21 +29,12 @@ export function useQuoMessages() {
     try {
       setLoading(true);
       setError(null);
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
-
-      const response = await fetch(
-        "/functions/v1/quo-messages?action=phone-numbers",
-        {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch phone numbers: ${response.statusText}`);
-      }
-
+      const response = await fetch("/functions/v1/quo-messages?action=phone-numbers", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok) throw new Error(`Failed to fetch phone numbers: ${response.statusText}`);
       const result = await response.json();
       return result.data || [];
     } catch (err) {
@@ -60,33 +54,17 @@ export function useQuoMessages() {
     try {
       setLoading(true);
       setError(null);
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
-
-      const params = new URLSearchParams({
-        action: "messages",
-        phoneNumberId,
-      });
-      if (participant) params.append("participant", participant);
+      const params = new URLSearchParams({ action: "messages", phoneNumberId });
+      if (participant) params.append("participants", participant);
       if (pageToken) params.append("pageToken", pageToken);
-
-      const response = await fetch(
-        `/functions/v1/quo-messages?${params}`,
-        {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch messages: ${response.statusText}`);
-      }
-
+      const response = await fetch(`/functions/v1/quo-messages?${params}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok) throw new Error(`Failed to fetch messages: ${response.statusText}`);
       const result = await response.json();
-      return {
-        messages: result.data || [],
-        nextPageToken: result.pageToken,
-      };
+      return { messages: result.data || [], nextPageToken: result.nextPageToken };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
@@ -104,30 +82,17 @@ export function useQuoMessages() {
     try {
       setLoading(true);
       setError(null);
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
-
-      const response = await fetch(
-        "/functions/v1/quo-messages",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from,
-            to: Array.isArray(to) ? to : [to],
-            content,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to send message: ${response.statusText}`);
-      }
-
+      const response = await fetch("/functions/v1/quo-messages", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from, to: Array.isArray(to) ? to : [to], content }),
+      });
+      if (!response.ok) throw new Error(`Failed to send message: ${response.statusText}`);
       const result = await response.json();
       return result.data || result;
     } catch (err) {
@@ -139,11 +104,5 @@ export function useQuoMessages() {
     }
   };
 
-  return {
-    loading,
-    error,
-    getPhoneNumbers,
-    getMessages,
-    sendMessage,
-  };
+  return { loading, error, getPhoneNumbers, getMessages, sendMessage };
 }
