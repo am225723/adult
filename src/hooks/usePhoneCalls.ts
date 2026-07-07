@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export interface PhoneCall {
   id: string;
+  external_id?: string | null;
   phone_account_id: string | null;
   direction: string | null;
   status: string | null;
@@ -11,6 +12,11 @@ export interface PhoneCall {
   duration_seconds: number | null;
   voicemail_transcript: string | null;
   voicemail_url: string | null;
+  recording_url?: string | null;
+  transcript_text?: string | null;
+  summary_text?: string | null;
+  external_phone?: string | null;
+  metadata?: Record<string, unknown> | null;
   contact_id: string | null;
 }
 
@@ -40,7 +46,6 @@ export function usePhoneCalls(filter: CallFilter = "all") {
           break;
         case "all":
         default:
-          // no additional filter
           break;
       }
 
