@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export interface PhoneMessage {
   id: string;
+  external_id?: string | null;
   phone_account_id: string | null;
   body: string | null;
   direction: string | null;
@@ -11,6 +12,8 @@ export interface PhoneMessage {
   is_read: boolean | null;
   contact_id: string | null;
   conversation_id: string | null;
+  message_status?: string | null;
+  external_phone?: string | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -40,7 +43,6 @@ export function usePhoneMessages(filter: MessageFilter = "all") {
           break;
         case "all":
         default:
-          // no additional filter
           break;
       }
 

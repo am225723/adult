@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
+  ChevronRight,
+  MessageSquare,
   Phone,
   PhoneIncoming,
-  PhoneOutgoing,
   PhoneMissed,
-  ChevronRight,
-  X,
+  PhoneOutgoing,
   Plus,
-  MessageSquare,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,9 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,17 @@ const FN_BASE = `${SUPABASE_URL}/functions/v1`;
 
 type CallFilter = "missed" | "all";
 
-// ── SMS Reply Dialog ─────────────────────────────────────────────────────────────────────────────────
+type FromNumber = {
+  id: string;
+  number?: string;
+  phoneNumber?: string;
+  formattedNumber?: string | null;
+  name?: string | null;
+};
+
+function phoneNumberLabel(pn: FromNumber) {
+  return pn.formattedNumber ?? pn.phoneNumber ?? pn.number ?? pn.id;
+}
 
 function SendSmsDialog({
   toNumber,
@@ -45,7 +55,7 @@ function SendSmsDialog({
 }) {
   const { session } = useAuth();
   const [body, setBody] = useState("");
-  const [phoneNumbers, setPhoneNumbers] = useState<Array<{ id: string; phoneNumber: string; name?: string }>>([])
+  const [phoneNumbers, setPhoneNumbers] = useState<FromNumber[]>([]);
   const [fromId, setFromId] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -77,8 +87,8 @@ function SendSmsDialog({
         },
         body: JSON.stringify({ from: fromId, to: toNumber, content: body }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to send SMS");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? "Failed to send SMS");
       toast({ title: "SMS sent" });
       setBody("");
       onOpenChange(false);
@@ -108,7 +118,7 @@ function SendSmsDialog({
               >
                 {phoneNumbers.map((pn) => (
                   <option key={pn.id} value={pn.id}>
-                    {pn.phoneNumber}{pn.name ? ` (${pn.name})` : ""}
+                    {phoneNumberLabel(pn)}{pn.name ? ` (${pn.name})` : ""}
                   </option>
                 ))}
               </select>
@@ -140,8 +150,6 @@ function SendSmsDialog({
     </Dialog>
   );
 }
-
-// ── Call detail panel ──────────────────────────────────────────────────────────────────────────
 
 function CallIcon({ direction, status }: { direction: string | null; status: string | null }) {
   if (direction === "incoming" && ["missed", "no-answer", "abandoned"].includes(status ?? "")) {
@@ -183,6 +191,10 @@ function safeHttpUrl(url: string | null | undefined): string | null {
   }
 }
 
+function callDisplayPhone(call: PhoneCall, contactPhone?: string | null) {
+  return contactPhone ?? call.external_phone ?? null;
+}
+
 function CallDetailPanel({
   call,
   onClose,
@@ -197,15 +209,20 @@ function CallDetailPanel({
   const { data: contact } = useContact(call.contact_id ?? "");
 
   const isMissed = ["missed", "no-answer", "abandoned"].includes(call.status ?? "");
-  const voicemailUrl = safeHttpUrl(call.voicemail_url);
+  const displayPhone = callDisplayPhone(call, contact?.primary_phone);
+  const displayName = contact?.display_name ?? displayPhone ?? "Unknown caller";
+  const recordingUrl = safeHttpUrl(call.voicemail_url) ?? safeHttpUrl(call.recording_url);
+  const voicemailText = call.voicemail_transcript?.trim();
+  const transcriptText = call.transcript_text?.trim();
+  const summaryText = call.summary_text?.trim();
 
   async function handleCreateTask() {
     setCreatingTask(true);
     const title = isMissed
-      ? `Return missed call${contact ? ` — ${contact.display_name}` : ""}`
-      : `Follow up on call${contact ? ` — ${contact.display_name}` : ""}`;
+      ? `Return missed call — ${displayName}`
+      : `Follow up on call — ${displayName}`;
     createTask.mutate(
-      { title, tags: ["phone"] },
+      { title, tags: ["phone", "quo"] },
       {
         onSuccess: () => {
           toast({ title: "Task created" });
@@ -228,55 +245,49 @@ function CallDetailPanel({
         </button>
       </div>
       <div className="flex-1 overflow-auto p-4 space-y-4">
-        {/* Contact */}
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Contact</p>
-          <p className="text-sm font-medium">{contact?.display_name ?? "Unknown caller"}</p>
-          {contact?.primary_phone && (
-            <p className="text-xs text-muted-foreground">{contact.primary_phone}</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Caller</p>
+          <p className="text-sm font-medium">{displayName}</p>
+          {displayPhone && contact?.display_name && (
+            <p className="text-xs text-muted-foreground">{displayPhone}</p>
           )}
         </div>
-        {/* Call info */}
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Details</p>
           <div className="flex items-center gap-2">
             <CallIcon direction={call.direction} status={call.status} />
-            <span className="text-sm capitalize">{call.status ?? call.direction}</span>
+            <span className="text-sm capitalize">{call.status ? call.status.replace("-", " ") : call.direction}</span>
           </div>
-          {call.duration_seconds != null && (
-            <p className="text-xs text-muted-foreground">
-              Duration: {formatDuration(call.duration_seconds)}
-            </p>
-          )}
+          {call.duration_seconds != null && <p className="text-xs text-muted-foreground">Duration: {formatDuration(call.duration_seconds)}</p>}
           <p className="text-xs text-muted-foreground">{relativeTime(call.occurred_at)}</p>
         </div>
-        {/* Voicemail */}
-        {call.voicemail_transcript && (
+        {(voicemailText || recordingUrl) && (
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Voicemail</p>
-            <p className="text-xs text-foreground leading-relaxed">{call.voicemail_transcript}</p>
-            {voicemailUrl && (
-              <a
-                href={voicemailUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-primary hover:underline mt-1 block"
-              >
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Voicemail / Recording</p>
+            {voicemailText && <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{voicemailText}</p>}
+            {recordingUrl && (
+              <a href={recordingUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline mt-1 block">
                 Listen to recording ↗
               </a>
             )}
           </div>
         )}
+        {summaryText && (
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Call summary</p>
+            <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{summaryText}</p>
+          </div>
+        )}
+        {transcriptText && (
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Transcript</p>
+            <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{transcriptText}</p>
+          </div>
+        )}
       </div>
-      {/* Actions */}
       <div className="border-t border-border p-3 space-y-2">
-        {contact?.primary_phone && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => onSmsReply(contact.primary_phone!)}
-          >
+        {displayPhone && (
+          <Button variant="outline" size="sm" className="w-full" onClick={() => onSmsReply(displayPhone)}>
             <MessageSquare size={13} className="mr-1.5" /> Send SMS
           </Button>
         )}
@@ -298,8 +309,7 @@ export function PhonePage() {
   const [selectedCall, setSelectedCall] = useState<PhoneCall | null>(null);
   const [smsToNumber, setSmsToNumber] = useState<string | null>(null);
   const { data: calls = [], isLoading, error } = usePhoneCalls(filter);
-
-  const TABS: { key: CallFilter; label: string }[] = [
+  const tabs: { key: CallFilter; label: string }[] = [
     { key: "missed", label: "Missed" },
     { key: "all", label: "All Calls" },
   ];
@@ -307,27 +317,19 @@ export function PhonePage() {
   return (
     <div className="flex flex-col md:flex-row h-full">
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <div className="px-4 py-6 border-b border-border/50 shrink-0">
           <h1 className="text-2xl font-bold font-display text-primary">Phone</h1>
-          <p className="text-sm text-muted-foreground mt-1">View your call history and voicemails</p>
+          <p className="text-sm text-muted-foreground mt-1">View your call history, recordings, transcripts, and voicemails</p>
         </div>
-
-        {/* Toolbar */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
           <div className="flex rounded-lg border border-border overflow-hidden">
-            {TABS.map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => {
-                  setFilter(tab.key);
-                  setSelectedCall(null);
-                }}
+                onClick={() => { setFilter(tab.key); setSelectedCall(null); }}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
-                  filter === tab.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  filter === tab.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 {tab.label}
@@ -335,101 +337,57 @@ export function PhonePage() {
             ))}
           </div>
         </div>
-        {/* Filter tabs */}
-        <div className="flex gap-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => { if (tab.key !== filter) { setFilter(tab.key); setSelectedCall(null); } }}
-              className={cn(
-                "px-3 py-1 text-xs rounded-full transition-colors",
-                filter === tab.key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Call list */}
-        <div className="flex-1 overflow-auto">
-          {isLoading && <LoadingSpinner message="Loading calls…" />}
-          {error && (
-            <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive p-8">
-              <Phone size={24} strokeWidth={1.25} />
-              <p className="text-sm text-center">Failed to load calls.</p>
-            </div>
-          )}
-          {!isLoading && !error && calls.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground p-8">
-              <Phone size={24} strokeWidth={1.25} />
-              <p className="text-sm text-center">
-                {filter === "missed" ? "No missed calls." : "No calls yet."}
-              </p>
-            </div>
-          )}
-          {calls.map((call) => (
-            <CallRow
-              key={call.id}
-              call={call}
-              isSelected={selectedCall?.id === call.id}
-              onClick={() => setSelectedCall(call.id === selectedCall?.id ? null : call)}
-            />
-          ))}
-        </div>
-
-        {/* Detail panel (desktop) */}
-        {selectedCall && (
-          <div className="hidden md:block">
-            <CallDetailPanel
-              call={selectedCall}
-              onClose={() => setSelectedCall(null)}
-              onSmsReply={(num) => { setSmsToNumber(num); }}
-            />
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 overflow-auto">
+            {isLoading && <LoadingSpinner message="Loading calls…" />}
+            {error && (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive p-8">
+                <Phone size={24} strokeWidth={1.25} />
+                <p className="text-sm text-center">Failed to load calls.</p>
+              </div>
+            )}
+            {!isLoading && !error && calls.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground p-8">
+                <Phone size={24} strokeWidth={1.25} />
+                <p className="text-sm text-center">{filter === "missed" ? "No missed calls." : "No calls yet."}</p>
+              </div>
+            )}
+            {calls.map((call) => (
+              <CallRow
+                key={call.id}
+                call={call}
+                isSelected={selectedCall?.id === call.id}
+                onClick={() => setSelectedCall(call.id === selectedCall?.id ? null : call)}
+              />
+            ))}
           </div>
-        )}
+          {selectedCall && (
+            <div className="hidden md:block">
+              <CallDetailPanel call={selectedCall} onClose={() => setSelectedCall(null)} onSmsReply={(num) => setSmsToNumber(num)} />
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Mobile detail modal */}
       {selectedCall && (
         <div className="md:hidden fixed inset-0 z-50 bg-background/80 flex items-end">
           <div className="w-full bg-card border-t border-border rounded-t-xl max-h-[80vh] overflow-auto">
-            <CallDetailPanel
-              call={selectedCall}
-              onClose={() => setSelectedCall(null)}
-              onSmsReply={(num) => { setSmsToNumber(num); }}
-            />
+            <CallDetailPanel call={selectedCall} onClose={() => setSelectedCall(null)} onSmsReply={(num) => setSmsToNumber(num)} />
           </div>
         </div>
       )}
-
-      {/* SMS dialog */}
       {smsToNumber && (
-        <SendSmsDialog
-          toNumber={smsToNumber}
-          open={!!smsToNumber}
-          onOpenChange={(open) => { if (!open) setSmsToNumber(null); }}
-        />
+        <SendSmsDialog toNumber={smsToNumber} open={!!smsToNumber} onOpenChange={(open) => { if (!open) setSmsToNumber(null); }} />
       )}
     </div>
   );
 }
 
-function CallRow({
-  call,
-  isSelected,
-  onClick,
-}: {
-  call: PhoneCall;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
+function CallRow({ call, isSelected, onClick }: { call: PhoneCall; isSelected: boolean; onClick: () => void }) {
   const { data: contact } = useContact(call.contact_id ?? "");
   const isMissed = ["missed", "no-answer", "abandoned"].includes(call.status ?? "");
+  const displayPhone = callDisplayPhone(call, contact?.primary_phone);
+  const displayName = contact?.display_name ?? displayPhone ?? "Unknown caller";
+  const hasArtifact = !!(call.voicemail_transcript || call.transcript_text || call.summary_text || call.recording_url || call.voicemail_url);
 
   return (
     <button
@@ -440,21 +398,14 @@ function CallRow({
         isMissed && "border-l-2 border-l-destructive",
       )}
     >
-      <div className="shrink-0">
-        <CallIcon direction={call.direction} status={call.status} />
-      </div>
+      <div className="shrink-0"><CallIcon direction={call.direction} status={call.status} /></div>
       <div className="flex-1 min-w-0">
-        <p className={cn("text-sm font-medium truncate", isMissed && "text-destructive")}>
-          {contact?.display_name ?? "Unknown caller"}
-        </p>
+        <p className={cn("text-sm font-medium truncate", isMissed && "text-destructive")}>{displayName}</p>
         <p className="text-xs text-muted-foreground">
           {call.status ? call.status.replace("-", " ") : call.direction} · {relativeTime(call.occurred_at)}
         </p>
-        {call.voicemail_transcript && (
-          <p className="text-xs text-muted-foreground truncate mt-0.5">
-            VM: {call.voicemail_transcript}
-          </p>
-        )}
+        {contact?.display_name && displayPhone && <p className="text-xs text-muted-foreground truncate">{displayPhone}</p>}
+        {hasArtifact && <p className="text-xs text-muted-foreground truncate mt-0.5">Transcript / recording available</p>}
       </div>
       <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
     </button>
