@@ -8,6 +8,18 @@ ALTER TABLE admin_phone_messages
   ADD COLUMN IF NOT EXISTS conversation_id text,
   ADD COLUMN IF NOT EXISTS message_status text DEFAULT 'received';
 
+DO $$
+BEGIN
+  ALTER TABLE admin_phone_messages DROP CONSTRAINT IF EXISTS admin_phone_messages_message_status_check;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'admin_phone_messages_message_status_check'
+  ) THEN
+    ALTER TABLE admin_phone_messages
+      ADD CONSTRAINT admin_phone_messages_message_status_check
+      CHECK (message_status IN ('queued', 'received', 'sent', 'delivered', 'undelivered', 'failed'));
+  END IF;
+END$$;
+
 ALTER TABLE admin_phone_calls
   ADD COLUMN IF NOT EXISTS external_phone text,
   ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}',
