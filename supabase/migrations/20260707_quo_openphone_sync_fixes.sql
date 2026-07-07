@@ -15,6 +15,11 @@ ALTER TABLE admin_phone_calls
   ADD COLUMN IF NOT EXISTS transcript_text text,
   ADD COLUMN IF NOT EXISTS summary_text text;
 
+ALTER TABLE admin_quo_tasks
+  ADD COLUMN IF NOT EXISTS assignee_id text,
+  ADD COLUMN IF NOT EXISTS conversation_id text,
+  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
 ALTER TABLE admin_tasks
   ADD COLUMN IF NOT EXISTS source text DEFAULT 'app',
   ADD COLUMN IF NOT EXISTS external_id text;
