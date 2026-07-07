@@ -255,8 +255,6 @@ export function useCreateTask() {
           project_id: task.project_id ?? null,
           parent_task_id: task.parent_task_id ?? null,
           assigned_to: task.assigned_to ?? null,
-          source: "app",
-          external_id: null,
         })
         .select()
         .single();
