@@ -35,6 +35,16 @@ export interface Project {
 type TaskFilter = "today" | "upcoming" | "overdue" | "completed" | "all" | "mine" | "unassigned";
 type TaskUpdatePayload = Partial<Omit<Task, "id">>;
 type QuoTaskAction = "update" | "delete" | "complete" | "reopen" | "assign" | "unassign" | "changeDueDate" | "removeDueDate";
+type ExternalIdentityRow = { external_user_id: string | null };
+type ExternalIdentityError = { message?: string };
+type ExternalIdentityQuery = {
+  select: (columns: string) => ExternalIdentityQuery;
+  eq: (column: string, value: string) => ExternalIdentityQuery;
+  maybeSingle: () => Promise<{ data: ExternalIdentityRow | null; error: ExternalIdentityError | null }>;
+};
+type ExternalIdentityClient = {
+  from: (table: "admin_user_external_identities") => ExternalIdentityQuery;
+};
 
 const QUO_SYNC_FIELDS = ["title", "notes", "due_date", "status", "assigned_to"] as const;
 
@@ -76,6 +86,28 @@ function hasQuoSyncField(updates: TaskUpdatePayload) {
   return QUO_SYNC_FIELDS.some((field) => updates[field] !== undefined);
 }
 
+async function getQuoUserIdForAssignee(task: Task, assignedTo: string) {
+  const identityClient = supabase as unknown as ExternalIdentityClient;
+  const { data, error } = await identityClient
+    .from("admin_user_external_identities")
+    .select("external_user_id")
+    .eq("workspace_id", task.workspace_id)
+    .eq("user_id", assignedTo)
+    .eq("provider", "quo")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? "Failed to resolve Quo assignee mapping");
+  }
+
+  const quoUserId = data?.external_user_id?.trim();
+  if (!quoUserId) {
+    throw new Error("Cannot assign Quo task because this app user is not mapped to a Quo user ID.");
+  }
+
+  return quoUserId;
+}
+
 async function syncQuoTaskUpdate(task: Task, updates: TaskUpdatePayload) {
   if (!isQuoBackedTask(task) || !hasQuoSyncField(updates)) return;
 
@@ -99,7 +131,8 @@ async function syncQuoTaskUpdate(task: Task, updates: TaskUpdatePayload) {
 
   if (updates.assigned_to !== undefined) {
     if (updates.assigned_to) {
-      await callQuoTaskEndpoint("POST", "assign", taskId, { taskId, userId: updates.assigned_to });
+      const quoUserId = await getQuoUserIdForAssignee(task, updates.assigned_to);
+      await callQuoTaskEndpoint("POST", "assign", taskId, { taskId, userId: quoUserId });
     } else {
       await callQuoTaskEndpoint("POST", "unassign", taskId);
     }
