@@ -40,6 +40,7 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useMyAdminUser } from "@/hooks/useWorkspaceUsers";
 import { FloatingChatBubble } from "@/components/FloatingChatBubble";
+import { useQuoSync } from "@/hooks/useQuoSync";
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Today" },
@@ -56,6 +57,7 @@ export function AppLayout() {
   useInactivityLogout();
   useAutoSync();
   useRealtimeNotifications();
+  useQuoSync();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);

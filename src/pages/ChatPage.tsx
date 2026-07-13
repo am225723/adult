@@ -13,6 +13,7 @@ import { HeadwayLinkCard } from "@/components/headway/HeadwayLinkCard";
 import { HeadwayWorkflowPanel } from "@/components/headway/HeadwayWorkflowPanel";
 import { useHeadwayWorkflow } from "@/hooks/useHeadwayWorkflow";
 import { extractHeadwayLinks } from "@/lib/headwayDetector";
+
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "unknown";
   const d = new Date(iso);
